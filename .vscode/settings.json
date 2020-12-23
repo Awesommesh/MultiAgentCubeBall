@@ -33,6 +33,7 @@
         "**/*.lxo":true,
         "**/*.LXO":true,
         "**/*.ma":true,
+        "**/*.MA":true,
         "**/*.obj":true,
         "**/*.OBJ":true,
         "**/*.asset":true,

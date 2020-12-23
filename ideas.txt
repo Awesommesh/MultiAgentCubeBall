@@ -1,0 +1,16 @@
+Base game: 5v5 soccer basic symettrical deep RL learning
+ - 5 blue and red players
+ - Basic goals
+ - Communication - Test if it makes a difference, differnet groups etc.
+
+Optional aesthetics after training is complete - runtime:
+ - Lighting
+ - Skins (Avian Adian) Textures
+
+Other different function changes as seperate simulations - optional after finishing:
+ - AI chooses starting position
+ - Obstacles (moving, ramps, objects etc)
+ - 4 team soccer
+ - 1v1, 3v3
+ - Basketball
+ - 
