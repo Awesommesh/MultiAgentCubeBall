@@ -1,12 +1,11 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using Unity.Collections;
-using Unity.Mathematics;
 using Unity.Entities;
 
 public struct TwoDArray : IComponentData {
-    private NativeArray<double> variable;
+    const int MAX_SIZE = 10000;
+    private DynamicBuffer<DoubleBufferElement> variable;
+    private Entity var;
 
     public int numRow
     {
@@ -28,11 +27,19 @@ public struct TwoDArray : IComponentData {
     public TwoDArray(int numRow, int numCol) {
         this.numRow = numRow;
         this.numCol = numCol;
-        variable = new NativeArray<double>(numRow*numCol, Allocator.Persistent);
+        EntityManager manager = World.DefaultGameObjectInjectionWorld.EntityManager;
+        var = manager.CreateEntity();
+        manager.AddBuffer<DoubleBufferElement>(var);
+        variable = manager.GetBuffer<DoubleBufferElement>(var);
+        variable.ResizeUninitialized(numRow * numCol);
     }
 
     public void Load(NativeArray<double> data) {
-        variable.CopyFrom(data);
+        NativeArray<DoubleBufferElement> bufferData = new NativeArray<DoubleBufferElement>();
+        for (int i = 0; i < data.Length; i++) {
+            bufferData[i] = new DoubleBufferElement(data[i]);
+        }
+        variable.CopyFrom(bufferData);
     }
 
     public void Fill(double val) {
@@ -44,12 +51,22 @@ public struct TwoDArray : IComponentData {
     public double this[params int[] indices] {
         get {
             if (indices.Length == 1) {
-                return variable[indices[0]];
+                //Debug.Log("Here");
+                //Debug.Log(indices[0]);
+                return variable[indices[0]].Value;
             }
-            return variable[indices[0]*numCol + indices[1]];
+            //Debug.Log(indices.Length);
+            return variable[indices[0]*numCol + indices[1]].Value;
         }
         set {
-            variable[indices[0]*numCol + indices[1]] = value;
+            if (indices.Length == 1) {
+                //Debug.Log("Here");
+                //Debug.Log(indices[0]);
+                //Debug.Log(variable.Length);
+                variable[indices[0]] = value;
+            } else {
+                variable[indices[0]*numCol + indices[1]] = value;
+            }
         }
     }
 
@@ -162,12 +179,15 @@ public struct TwoDArray : IComponentData {
 
     public void Print()
         {
+            string matrixString = "Matrix of dimensions " + numRow + "x" + numCol +":\n";
             for (int i = 0; i < numRow; i++)
             {
                 for (int j = 0; j < numCol; j++)
                 {
-                    Debug.Log(this[i, j] + "\t");
+                    matrixString += (this[i, j] + "\t");
                 }
+                matrixString += "\n";
             }
+            Debug.Log(matrixString);
         }
 }

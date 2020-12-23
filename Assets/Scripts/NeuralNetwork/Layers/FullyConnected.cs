@@ -1,8 +1,8 @@
 using Unity.Entities;
 public struct FullyConnected : IComponentData {
-    public string name {
+    public NNLayer type {
         get {
-            return "Fully Connected";
+            return NNLayer.FullyConnected;
         }
     }
     int InputDim {
@@ -28,18 +28,17 @@ public struct FullyConnected : IComponentData {
         get;
         set;
     }
-
-    IActivation Activation {
+    ActivationFunction Activation {
         get;
         set;
     }
-    public FullyConnected(int numInput, int numOutput, string act, uint seed) {
+    public FullyConnected(int numInput, int numOutput, ActivationFunctionType act, uint seed) {
         Parameters = Operations.Random2DArray(numInput, numOutput, seed);
         this.Input = new TwoDArray(numInput, 1);
         this.Output = new TwoDArray(numOutput, 1);
         this.InputDim = numInput;
-        this.OutputDim = numOutput; 
-        Activation = BaseActivation.getActivation(act, numOutput);
+        this.OutputDim = numOutput;
+        Activation = new ActivationFunction(act, numOutput);
     }
 
     public void Forward(TwoDArray Input) {
