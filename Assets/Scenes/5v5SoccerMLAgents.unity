@@ -1680,7 +1680,6 @@ GameObject:
   - component: {fileID: 4240563790692320195}
   - component: {fileID: 4282290840991869777}
   - component: {fileID: 4200864450052585709}
-  - component: {fileID: 4218416697570178904}
   m_Layer: 0
   m_Name: Ball
   m_TagString: Untagged
@@ -1688,19 +1687,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &4218416697570178904
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4218416697570178903}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a461fc615a3b5425eaaf7285efc32b21, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  manager: {fileID: 0}
 --- !u!4 &4223355670641762621
 Transform:
   m_ObjectHideFlags: 0
@@ -2723,7 +2709,6 @@ GameObject:
   - component: {fileID: 8686083699849529715}
   - component: {fileID: 8686083699848432563}
   - component: {fileID: 8686083699850368372}
-  - component: {fileID: 8686083699850368374}
   m_Layer: 0
   m_Name: Pitch
   m_TagString: Untagged
@@ -2762,18 +2747,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &8686083699850368374
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8686083699850368371}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 221615272af5243809e89daced36de4d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!1 &8686083699850368375
 GameObject:
   m_ObjectHideFlags: 0
