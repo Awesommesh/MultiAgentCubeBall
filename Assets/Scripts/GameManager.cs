@@ -4,6 +4,7 @@ using UnityEngine;
 public class GameManager : MonoBehaviour
 {
     public static uint SEED = 1;
+    public static uint NDArrayGenSeed = 2;
     public static double GAE_LAMBDA = 0.95;
     public static double GAMMA = 0.99;
 
