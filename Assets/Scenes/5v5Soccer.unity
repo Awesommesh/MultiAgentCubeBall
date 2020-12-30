@@ -427,6 +427,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Game
       objectReference: {fileID: 0}
+    - target: {fileID: 5293361891846951304, guid: 5e8390441efa74dd3aa1288a31387b04, type: 3}
+      propertyPath: m_Intensity
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 5658040628729837303, guid: 5e8390441efa74dd3aa1288a31387b04, type: 3}
       propertyPath: m_LocalRotation.w
       value: 1
