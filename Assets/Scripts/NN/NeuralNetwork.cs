@@ -12,7 +12,7 @@ public struct NeuralNetwork {
     private int iteration;
     int numLayers;
     NativeArray<ActivationType> activations;
-        int numInputs;
+    int numInputs;
     int numOutputs;
     public NDArray std;
     NativeArray<NDArray> inputs;
@@ -63,6 +63,9 @@ public struct NeuralNetwork {
             inputs[i].Dispose();
             activationInputs[i].Dispose();
         }
+        activations.Dispose();
+        activationInputs.Dispose();
+        inputs.Dispose();
     }
 
     public NDArray Forward(NDArray input) {
@@ -78,7 +81,7 @@ public struct NeuralNetwork {
                     curOutput = Sigmoid(activationInputs[i]);
                     break;
                 default:
-                    curOutput = activationInputs[i] * (activationInputs[i] > 0);
+                    curOutput = activationInputs[i];
                     break;
             }
             if (i+1 == numLayers) {
@@ -102,7 +105,7 @@ public struct NeuralNetwork {
                     curGrad = Sigmoid(activationInputs[i]) * gradient;
                     break;
                 default:
-                    curGrad = (activationInputs[i] > 0) * gradient;
+                    curGrad = gradient;
                     break;
             }
             NDArray weightsGrad = NDArray.Dot(curGrad, inputs[i].T());
