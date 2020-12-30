@@ -32,8 +32,8 @@ public struct PPOUpdateJob : IJobParallelFor {
             int index = (int)minibatches[i][j];
             NDArray dist = actor.Forward(states[index]);
             NDArray value = critic.Forward(states[index]);
-            double entropy = GaussianDistribution.entropy(actor.std.Mean());
-            NDArray new_log_probs = GaussianDistribution.log_prob(action[index], dist, actor.std, Allocator.TempJob);
+            double entropy = GaussianDistribution.entropy(actor.log_std.Mean());
+            NDArray new_log_probs = GaussianDistribution.log_prob(action[index], dist, actor.log_std, Allocator.TempJob);
             NDArray ratio = NDArray.Exp(new_log_probs - old_log_probs[index]);
             NDArray surr1 = ratio * advantage[index];
             NDArray surr2 = NDArray.Clamp(ratio, 1-PPO_EPILSON, 1+PPO_EPILSON) * advantage[index];
@@ -44,7 +44,7 @@ public struct PPOUpdateJob : IJobParallelFor {
             //Actor NN BackProp
             NDArray minBacksurr1 = -(1/surr1.numElements) * (surr1 < surr2) * surr1;
             NDArray minBacksurr2 = -(1/surr1.numElements) * (surr2 < surr1) * NDArray.Clamp_Back(ratio, 1-PPO_EPILSON, 1+PPO_EPILSON) * surr1;
-            NDArray minBackDist = (minBacksurr1 + minBacksurr2) * GaussianDistribution.log_prob_back(action[index], dist, actor.std);
+            NDArray minBackDist = (minBacksurr1 + minBacksurr2) * GaussianDistribution.log_prob_back(action[index], dist, actor.log_std);
             actor.Backward(minBackDist);
 
             //Critic NN BackProp

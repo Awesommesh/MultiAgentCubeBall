@@ -14,11 +14,11 @@ public struct NeuralNetwork {
     NativeArray<ActivationType> activations;
     int numInputs;
     int numOutputs;
-    public NDArray std;
+    public NDArray log_std;
     NativeArray<NDArray> inputs;
     NativeArray<NDArray> activationInputs;
 
-    public NeuralNetwork(int numLayers, NativeArray<ActivationType> activations, NativeArray<NDArray> weights, int numInputs, int numOutputs, NativeArray<double> stdVals,
+    public NeuralNetwork(int numLayers, NativeArray<ActivationType> activations, NativeArray<NDArray> weights, int numInputs, int numOutputs, NativeArray<double> log_stdVals,
         double alpha, double beta1, double beta2, double epsilon) {
         this.numLayers = numLayers;
         this.activations = activations;
@@ -37,9 +37,9 @@ public struct NeuralNetwork {
         this.epsilon = epsilon;
         inputs = new NativeArray<NDArray>(numLayers, Allocator.Persistent);
         activationInputs = new NativeArray<NDArray>(numLayers, Allocator.Persistent);
-        NativeArray<int> stdShape = new NativeArray<int>(1, Allocator.Persistent);
-        stdShape[0] = numOutputs;
-        std = new NDArray(stdShape, stdVals, Allocator.Persistent);
+        NativeArray<int> log_stdShape = new NativeArray<int>(1, Allocator.Persistent);
+        log_stdShape[0] = numOutputs;
+        log_std = new NDArray(log_stdShape, log_stdVals, Allocator.Persistent);
         iteration = 0;
     }
 

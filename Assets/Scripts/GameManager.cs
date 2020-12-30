@@ -6,26 +6,43 @@ public class GameManager : MonoBehaviour
 {
     public static uint SEED = 1;
     public static uint NDArrayGenSeed = 2;
+    public int NUM_ENV = 1;
     public static double GAE_LAMBDA = 0.95;
     public static double GAMMA = 0.99;
     public static double ALPHA = 0.001;
     public static double BETA1 = 0.9;
     public static double BETA2 = 0.999;
     public static double EPSILON = 0.00000001;
+    public static int EPISODE_LENGTH = 256;
+    public int MINI_BATCH_SIZE = 64;
+    public int PPO_EPOCHS = 10;
+    public static int TEAM_SIZE = 5;
+    public static double FIELD_LENGTH = 90;
+    public static double MAX_SPEED = 5;
     public int numLayers;
-    public int STATE_SIZE = 70;
-    public int numOutputs;
+    public static int STATE_SIZE = 70;
+    public static int NUM_OUTPUTS = 3;
+    public static float PHYSICS_STEP_SIZE = 0.01f;
     public NeuralNetwork[] agents;
     public NeuralNetwork[] critics;
-    public int EPISODE_LENGTH = 256;
+    
     public int episode_iteration = 0;
-    public GameObject[] blueTeam;
-    public GameObject[] redTeam;
-    public GameObject blueGoal;
-    public GameObject redGoal;
-    public GameObject ball;
+    public GameObject gameEnv;
+    public Experience[] envs;
     void Awake() {
+        Physics.autoSimulation = false;
+        agents = new NeuralNetwork[TEAM_SIZE];
+        critics = new NeuralNetwork[TEAM_SIZE];
+
+        //Setup parallel environments (for now only works with one environment)
+        envs = new Experience[NUM_ENV];
+        for (int i = 0; i < NUM_ENV; i++) {
+            //envs[i] = new Experience();
+        }
+
         episode_iteration = 0;
+
+        //Initialize NN randomly with correct architecture etc.
         NativeArray<ActivationType> activationList = new NativeArray<ActivationType>(numLayers, Allocator.Persistent);
         activationList[0] = ActivationType.ReLU;
         activationList[1] = ActivationType.ReLU;
@@ -56,11 +73,11 @@ public class GameManager : MonoBehaviour
             for (int j = 0; j < layerShapes.Length; j++) {
                 initialWeights[i] = NDArray.RandomNDArray(layerShapes[i], Allocator.Persistent);
             }
-            NativeArray<double> stdVals = new NativeArray<double>(numOutputs, Allocator.Persistent);
+            NativeArray<double> stdVals = new NativeArray<double>(NUM_OUTPUTS, Allocator.Persistent);
             for (int j = 0; j < stdVals.Length; j++) {
                 stdVals[j] = 0;
             }
-            agents[i] = new NeuralNetwork(numLayers, activationList, initialWeights, STATE_SIZE, numOutputs, stdVals, ALPHA, BETA1, BETA2, EPSILON);
+            agents[i] = new NeuralNetwork(numLayers, activationList, initialWeights, STATE_SIZE, NUM_OUTPUTS, stdVals, ALPHA, BETA1, BETA2, EPSILON);
             critics[i] = new NeuralNetwork(numLayers, activationList, initialWeights, STATE_SIZE, 1, stdVals, ALPHA, BETA1, BETA2, EPSILON);
         }
     }
@@ -75,9 +92,15 @@ public class GameManager : MonoBehaviour
     void Update()
     {
         if (episode_iteration < 256) {
-
+            //Perform Blue Team Actions
+            
+            //Perform Red Team Actions
             episode_iteration++;
         }
+        if (episode_iteration == 256) {
+
+        }
+        Physics.Simulate(PHYSICS_STEP_SIZE);
     }
 
     public void DisposeAll() {
@@ -85,5 +108,9 @@ public class GameManager : MonoBehaviour
             agents[i].Dispose();
             critics[i].Dispose();
         }
+    }
+
+    void Reset() {
+
     }
 }
