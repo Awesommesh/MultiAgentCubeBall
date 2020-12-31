@@ -1,33 +1,34 @@
 using Unity.Collections;
 using Unity.Mathematics;
-public struct NeuralNetwork {
-    NativeArray<NDArray> weights;
+using Unity.Jobs;
+public struct NeuralNetwork { //Change to call small jobs to do all calcs
+    NDArray[] weights;
     //Adam Optimization Parameters
-    private NativeArray<NDArray> V_dw;
-    private NativeArray<NDArray> S_dw;
+    private NDArray[] V_dw;
+    private NDArray[] S_dw;
     private double alpha;
     private double beta1;
     private double beta2;
     private double epsilon;
     private int iteration;
     int numLayers;
-    NativeArray<ActivationType> activations;
+    ActivationType[] activations;
     int numInputs;
     int numOutputs;
     public NDArray log_std;
-    NativeArray<NDArray> inputs;
-    NativeArray<NDArray> activationInputs;
+    NDArray[] inputs;
+    NDArray[] activationInputs;
 
-    public NeuralNetwork(int numLayers, NativeArray<ActivationType> activations, NativeArray<NDArray> weights, int numInputs, int numOutputs, NativeArray<double> log_stdVals,
+    public NeuralNetwork(int numLayers, ActivationType[] activations, NDArray[] weights, int numInputs, int numOutputs, double[] log_stdVals,
         double alpha, double beta1, double beta2, double epsilon) {
         this.numLayers = numLayers;
         this.activations = activations;
         this.weights = weights;
-        this.V_dw = new NativeArray<NDArray>(weights.Length, Allocator.Persistent);
-        this.S_dw = new NativeArray<NDArray>(weights.Length, Allocator.Persistent);
+        this.V_dw = new NDArray[weights.Length];
+        this.S_dw = new NDArray[weights.Length];
         for (int i = 0; i < weights.Length; i++) {
-            V_dw[i] = NDArray.NDArrayZeros(weights[i].shape, Allocator.Persistent);
-            S_dw[i] = NDArray.NDArrayZeros(weights[i].shape, Allocator.Persistent);
+            V_dw[i] = NDArray.NDArrayZeros(weights[i].shape);
+            S_dw[i] = NDArray.NDArrayZeros(weights[i].shape);
         }
         this.numInputs = numInputs;
         this.numOutputs = numOutputs;
@@ -35,56 +36,53 @@ public struct NeuralNetwork {
         this.beta1 = beta1;
         this.beta2 = beta2;
         this.epsilon = epsilon;
-        inputs = new NativeArray<NDArray>(numLayers, Allocator.Persistent);
-        activationInputs = new NativeArray<NDArray>(numLayers, Allocator.Persistent);
-        NativeArray<int> log_stdShape = new NativeArray<int>(1, Allocator.Persistent);
-        log_stdShape[0] = numOutputs;
-        log_std = new NDArray(log_stdShape, log_stdVals, Allocator.Persistent);
+        inputs = new NDArray[numLayers];
+        activationInputs = new NDArray[numLayers];
+        log_std = new NDArray(numOutputs);
+        log_std.Fill(log_stdVals);
         iteration = 0;
     }
 
     public void resetOptimizerWeights() {
         for (int i = 0; i < weights.Length; i++) {
-            V_dw[i] = NDArray.NDArrayZeros(weights[i].shape, Allocator.Persistent);
-            S_dw[i] = NDArray.NDArrayZeros(weights[i].shape, Allocator.Persistent);
+            V_dw[i] = NDArray.NDArrayZeros(weights[i].shape);
+            S_dw[i] = NDArray.NDArrayZeros(weights[i].shape);
         }
-    }
-
-    public void Dispose() {
-        for (int i = 0; i < weights.Length; i++) {
-            weights[i].Dispose();
-            V_dw[i].Dispose();
-            S_dw[i].Dispose();
-        }
-        weights.Dispose();
-        V_dw.Dispose();
-        S_dw.Dispose();
-        for (int i = 0; i < inputs.Length; i++) {
-            inputs[i].Dispose();
-            activationInputs[i].Dispose();
-        }
-        activations.Dispose();
-        activationInputs.Dispose();
-        inputs.Dispose();
     }
 
     public NDArray Forward(NDArray input) {
         inputs[0] = input;
         for (int i = 0; i < numLayers; i++) {
-            activationInputs[i] = NDArray.Dot(weights[i], inputs[i]);
-            NDArray curOutput;
-            switch(activations[i]) {
-                case ActivationType.ReLU:
-                    curOutput = activationInputs[i] * (activationInputs[i] > 0);
-                    break;
-                case ActivationType.Sigmoid:
-                    curOutput = Sigmoid(activationInputs[i]);
-                    break;
-                default:
-                    curOutput = activationInputs[i];
-                    break;
-            }
+            //Step Forward Job
+            NativeArray<double> nativeWeights = weights[i].getNativeArray(Allocator.TempJob);
+            NativeArray<int> nativeWeightsShape = weights[i].getNativeShape(Allocator.TempJob);
+            NativeArray<double> nativeInputs = inputs[i].getNativeArray(Allocator.TempJob);
+            NativeArray<double> layerOutput = new NativeArray<double>(weights[i].shape[0], Allocator.TempJob);
+            NativeArray<double> activationOutput = new NativeArray<double>(weights[i].shape[0], Allocator.TempJob);
+            NNStepForwardJob stepForwardJob = new NNStepForwardJob {
+                weights = nativeWeights,
+                weightsShape = nativeWeightsShape,
+                input = nativeInputs,
+                activation = activations[i],
+                layerOutput = layerOutput,
+                activationOutput = activationOutput
+            };
+            JobHandle jobHandle = stepForwardJob.Schedule();
+            jobHandle.Complete();
+            
+            //Save outputs of layer and activation function
+            activationInputs[i] = NDArray.fromNativeArray(layerOutput);
+            NDArray curOutput = NDArray.fromNativeArray(activationOutput);
+
+            //Dispose all native arrays
+            nativeWeights.Dispose();
+            nativeWeightsShape.Dispose();
+            nativeInputs.Dispose();
+            layerOutput.Dispose();
+            activationOutput.Dispose();
+
             if (i+1 == numLayers) {
+                
                 return curOutput;
             }
             inputs[i+1] = curOutput;
@@ -95,28 +93,62 @@ public struct NeuralNetwork {
 
     public void Backward(NDArray grad) {
         NDArray gradient = grad;
-        for (int i = numLayers - 1; i >= 0; i--) {
-            NDArray curGrad;
-            switch(activations[i]) {
-                case ActivationType.ReLU:
-                    curGrad = (activationInputs[i] > 0) * gradient;
-                    break;
-                case ActivationType.Sigmoid:
-                    curGrad = Sigmoid(activationInputs[i]) * gradient;
-                    break;
-                default:
-                    curGrad = gradient;
-                    break;
-            }
-            NDArray weightsGrad = NDArray.Dot(curGrad, inputs[i].T());
-            gradient = weights[i].T() * curGrad;
+        for (int i = numLayers - 1; i >= 0; i--) {  
+            //Step Backward Job
+            NativeArray<double> nativeWeights = weights[i].getNativeArray(Allocator.TempJob);
+            NativeArray<int> nativeWeightsShape = weights[i].getNativeShape(Allocator.TempJob);
+            NativeArray<double> nativeLayerInput = inputs[i].getNativeArray(Allocator.TempJob);
+            NativeArray<double> nativeActivationInput = activationInputs[i].getNativeArray(Allocator.TempJob);
+            NativeArray<double> nativeGrad = gradient.getNativeArray(Allocator.TempJob);
+            NativeArray<double> nativeWeightsGradient = new NativeArray<double>(weights[i].numElements, Allocator.TempJob);
+            NativeArray<double> nativeLayerGradient = new NativeArray<double>(weights[i].shape[1], Allocator.TempJob);
+            NNStepBackwardJob stepBackwardJob = new NNStepBackwardJob {
+                weights = nativeWeights,
+                weightsShape = nativeWeightsShape,
+                layerInput = nativeLayerInput,
+                activationInput = nativeActivationInput,
+                activation = activations[i],
+                weightsGrad = nativeWeightsGradient,
+                layerGrad = nativeLayerGradient
+            };
+            JobHandle jobHandle = stepBackwardJob.Schedule();
+            jobHandle.Complete();
 
-            //Update weights[i] using Adam Optimization
-            V_dw[i] = (beta1 * V_dw[i]) + (1-beta1) * weightsGrad;
-            S_dw[i] = (beta2 * S_dw[i]) + (1-beta2) * NDArray.Pow(weightsGrad, 2);
-            NDArray V_dw_corrected = V_dw[i] / (1 - math.pow(beta1, iteration));
-            NDArray S_dw_corrected = S_dw[i] / (1 - math.pow(beta2, iteration));
-            weights[i] -= alpha * (V_dw_corrected / (NDArray.Sqrt(S_dw_corrected) + epsilon));
+            gradient = NDArray.fromNativeArray(nativeLayerGradient);
+
+            //Dispose redundant native arrays
+            nativeWeightsShape.Dispose();
+            nativeLayerInput.Dispose();
+            nativeActivationInput.Dispose();
+            nativeGrad.Dispose();
+            nativeLayerGradient.Dispose();
+            
+            //Adam Optimization Job
+            NativeArray<double> nativeV_dw = V_dw[i].getNativeArray(Allocator.TempJob);
+            NativeArray<double> nativeS_dw = S_dw[i].getNativeArray(Allocator.TempJob);
+            AdamOptimizerStepJob adamJob = new AdamOptimizerStepJob {
+                weightsGrad = nativeWeightsGradient,
+                alpha = alpha,
+                beta1 = beta1,
+                beta2 = beta2,
+                epsilon = epsilon,
+                iteration = iteration,
+                V_dw = nativeV_dw,
+                S_dw = nativeS_dw,
+                weights = nativeWeights
+            };
+            jobHandle = adamJob.Schedule(weights.Length, 32);
+            jobHandle.Complete();
+
+            V_dw[i] = NDArray.fromNativeArray(nativeV_dw);
+            S_dw[i] = NDArray.fromNativeArray(nativeS_dw);
+            weights[i] = NDArray.fromNativeArray(nativeWeights);
+            
+            //Dispose all remaining native arrays
+            nativeWeights.Dispose();
+            nativeWeightsGradient.Dispose();
+            nativeV_dw.Dispose();
+            nativeS_dw.Dispose();
         }
         iteration++;
     }

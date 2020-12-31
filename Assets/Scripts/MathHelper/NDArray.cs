@@ -1,71 +1,74 @@
 using Unity.Collections;
 using Unity.Mathematics;
 public struct NDArray {
-    private static NativeList<NDArray> opArrays = new NativeList<NDArray>(OP_ARRAY_SIZE, Allocator.Persistent);
     private const double EPSILON = 0.00000000001;
-    private const int OP_ARRAY_SIZE = 100000;
     private static Random rng = new Random(GameManager.NDArrayGenSeed);
-    private NativeArray<double> array;
-    private Allocator allocator {
-        get;
-        set;
-    }
+    private double[] array;
 
-    public NativeArray<int> shape {
+    public int[] shape {
         get;
         set;
     }
 
     public int numElements {
-        get {
-            int e = 1;
-            for (int i = 0; i < shape.Length; i++) {
-                e *= shape[i];
-            }
-            return e;
-        }
+        get;
+        set;
     }
 
-    public static NDArray NDArrayZeros(NativeArray<int> shape, Allocator allocator) {
-        int numElem = 1;
+    public NativeArray<int> getNativeShape(Allocator allocator) {
+        NativeArray<int> nativeShape = new NativeArray<int>(shape.Length, allocator);
         for (int i = 0; i < shape.Length; i++) {
-            numElem *= shape[i];
+            nativeShape[i] = shape[i];
         }
-        NativeArray<double> data = new NativeArray<double>(numElem, allocator);
-        for (int i = 0; i < numElem; i++) {
-            data[i] = 0;
-        }
-        return new NDArray(shape, data, allocator);
+        return nativeShape;
     }
 
-    public static NDArray RandomNDArray(NativeArray<int> shape, Allocator allocator) {
-        int numElem = 1;
-        for (int i = 0; i < shape.Length; i++) {
-            numElem *= shape[i];
+    public NativeArray<double> getNativeArray(Allocator allocator) {
+        NativeArray<double> nativeArray = new NativeArray<double>(numElements, allocator);
+        for (int i = 0; i < numElements; i++) {
+            nativeArray[i] = array[i];
         }
-        NativeArray<double> data = new NativeArray<double>(numElem, allocator);
-        for (int i = 0; i < numElem; i++) {
-            data[i] = rng.NextDouble();
-        }
-        return new NDArray(shape, data, allocator);
+        return nativeArray;
     }
 
-    public NDArray (NativeArray<int> shape, NativeArray<double> data, Allocator allocator) {
+    public static NDArray fromNativeArray(NativeArray<double> data) {
+        NDArray fromNative = new NDArray(data.Length, 1);
+        for (int i = 0; i < data.Length; i++) {
+            fromNative[i] = data[i];
+        } 
+        return fromNative;
+    }
+
+    public static NDArray NDArrayZeros(params int[] shape) {
+        NDArray zeros = new NDArray(shape);
+        for (int i = 0; i < zeros.numElements; i++) {
+            zeros[i] = 0;
+        }
+        return zeros;
+    }
+
+    public static NDArray RandomNDArray(params int[] shape) {
+        NDArray random = new NDArray(shape);
+        for (int i = 0; i < random.numElements; i++) {
+            random[i] = rng.NextDouble();
+        }
+        return random;
+    }
+
+    public NDArray (params int[] shape) {
         this.shape = shape;
-        this.array = data;
-        this.allocator = allocator;
-    }
-
-    public void Dispose() {
-        array.Dispose();
-        shape.Dispose();
-    }
-
-    public static void DisposeAll() {
-        for (int i = 0; i < opArrays.Length; i++) {
-            opArrays.ElementAt(i).Dispose();
+        int e = 1;
+        for (int i = 0; i < shape.Length; i++) {
+            e *= shape[i];
         }
-        opArrays.Clear();
+        this.numElements = e;
+        this.array = new double[e];
+    }
+
+    public void Fill(double[] data) {
+        for (int i = 0; i < data.Length; i++) {
+            this.array[i] = data[i];
+        }
     }
 
     public double this[params int[] indices] {
@@ -83,35 +86,22 @@ public struct NDArray {
         }
 
         set {
-            this.set(indices, value);
-        }
-    }
-
-    public void set(int index, double value) {
-        array[index] = value;
-    }
-    public void set(int[] indices, double value) {
-        if (indices.Length == 1) {
-            array[indices[0]] = value;
-        } else {
-            int[] strides = getStrides();
-            int index = 0;
-            for (int i = 0; i < indices.Length; i++) {
-                index += indices[i] * strides[i];
+            if (indices.Length == 1) {
+                array[indices[0]] = value;
+            } else {
+                int[] strides = getStrides();
+                int index = 0;
+                for (int i = 0; i < indices.Length; i++) {
+                    index += indices[i] * strides[i];
+                }
+                array[index] = value;
             }
-            array[index] = value;
         }
     }
 
     //Operations
-    //NOTE: MUST DISPOSE OF RETURNED NDARRAY TO AVOID MEMORY LEAKS!!!!!
-
     public static NDArray operator > (NDArray a, int b) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray greaterThan = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(greaterThan);
+        NDArray greaterThan = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             greaterThan[i] = a[i] > b ? 1 : 0;
         }
@@ -119,11 +109,7 @@ public struct NDArray {
     }
 
     public static NDArray operator < (NDArray a, int b) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray lessThan = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(lessThan);
+        NDArray lessThan = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             lessThan[i] = a[i] < b ? 1 : 0;
         }
@@ -131,11 +117,7 @@ public struct NDArray {
     }
 
     public static NDArray operator > (NDArray a, NDArray b) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray greaterThan = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(greaterThan);
+        NDArray greaterThan = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             greaterThan[i] = a[i] > b[i] ? 1 : 0;
         }
@@ -143,11 +125,7 @@ public struct NDArray {
     }
 
     public static NDArray operator < (NDArray a, NDArray b) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray lessThan = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(lessThan);
+        NDArray lessThan = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             lessThan[i] = a[i] < b[i] ? 1 : 0;
         }
@@ -155,11 +133,7 @@ public struct NDArray {
     }
 
     public static NDArray operator * (NDArray a, NDArray b) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray product = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(product);
+        NDArray product = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             product[i] = a[i]*b[i];
         }
@@ -167,11 +141,7 @@ public struct NDArray {
     }
 
     public static NDArray operator * (NDArray a, double b) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray product = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(product);
+        NDArray product = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             product[i] = a[i]*b;
         }
@@ -179,11 +149,7 @@ public struct NDArray {
     }
 
     public static NDArray operator * (double b, NDArray a) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray product = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(product);
+        NDArray product = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             product[i] = a[i]*b;
         }
@@ -191,11 +157,7 @@ public struct NDArray {
     }
 
     public static NDArray operator / (NDArray a, NDArray b) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray dividend = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(dividend);
+        NDArray dividend = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             if (b[i] == 0) {
                 dividend[i] = a[i] / EPSILON;
@@ -207,11 +169,7 @@ public struct NDArray {
     }
 
     public static NDArray operator / (NDArray a, double b) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray dividend = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(dividend);
+        NDArray dividend = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             if (b == 0) {
                 dividend[i] = a[i] / EPSILON;
@@ -223,11 +181,7 @@ public struct NDArray {
     }
 
     public static NDArray operator / (double b, NDArray a) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray dividend = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(dividend);
+        NDArray dividend = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             if (b == 0) {
                 dividend[i] = a[i] / EPSILON;
@@ -239,22 +193,14 @@ public struct NDArray {
     }
 
     public static NDArray operator + (NDArray a, double b) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray sum = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(sum);
+        NDArray sum = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             sum[i] = a[i] + b;
         }
         return sum;
     }
     public static NDArray operator + (double b, NDArray a) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray sum = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(sum);
+        NDArray sum = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             sum[i] = a[i] + b;
         }
@@ -262,11 +208,7 @@ public struct NDArray {
     }
 
     public static NDArray operator + (NDArray a, NDArray b) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray sum = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(sum);
+        NDArray sum = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             sum[i] = a[i] + b[i];
         }
@@ -274,22 +216,14 @@ public struct NDArray {
     }
 
     public static NDArray operator - (NDArray a, double b) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray difference = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(difference);
+        NDArray difference = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             difference[i] = a[i] - b;
         }
         return difference;
     }
     public static NDArray operator - (double b, NDArray a) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray difference = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(difference);
+        NDArray difference = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             difference[i] = b - a[i];
         }
@@ -297,11 +231,7 @@ public struct NDArray {
     }
 
     public static NDArray operator - (NDArray a, NDArray b) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray difference = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(difference);
+        NDArray difference = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             difference[i] = a[i] - b[i];
         }
@@ -309,11 +239,7 @@ public struct NDArray {
     }
 
     public static NDArray Exp (NDArray a) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray exp = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(exp);
+        NDArray exp = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             exp[i] = math.exp(a[i]);
         }
@@ -321,23 +247,14 @@ public struct NDArray {
     }
 
     public static NDArray Sqrt (NDArray a) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray sqrt = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(sqrt);
+        NDArray sqrt = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             sqrt[i] = math.sqrt(a[i]);
         }
         return sqrt;
     }
     public static NDArray Dot (NDArray a, NDArray b) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(2, a.allocator);
-        tempShape[0] = a.shape[0];
-        tempShape[1] = b.shape[1];
-        NDArray dot = new NDArray(tempShape, temp, a.allocator);
-        NDArray.opArrays.Add(dot);
+        NDArray dot = new NDArray(a.shape);
         for (int i = 0; i < a.shape[0]; i++) {
             for (int j = 0; j < b.shape[1]; j++) {
                 dot[i, j] = 0;
@@ -350,10 +267,7 @@ public struct NDArray {
     }
 
     public static NDArray Clamp(NDArray a, double min, double max) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray clamp = new NDArray(tempShape, temp, a.allocator);
+        NDArray clamp = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             if (a[i] < min) {
                 clamp[i] = min;
@@ -367,10 +281,7 @@ public struct NDArray {
     }
 
     public static NDArray Clamp_Back(NDArray a, double min, double max) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray clamp_back = new NDArray(tempShape, temp, a.allocator);
+        NDArray clamp_back = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             if (a[i] < min) {
                 clamp_back[i] = 0;
@@ -384,10 +295,7 @@ public struct NDArray {
     }
 
     public static NDArray Min(NDArray a, NDArray b) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray min = new NDArray(tempShape, temp, a.allocator);
+        NDArray min = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             min[i] = math.min(a[i], b[i]);
         }
@@ -395,10 +303,7 @@ public struct NDArray {
     }
 
     public static NDArray Pow(NDArray a, double p) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray pow = new NDArray(tempShape, temp, a.allocator);
+        NDArray pow = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             pow[i] = math.pow(a[i], p);
         }
@@ -413,13 +318,9 @@ public struct NDArray {
     }
 
     public NDArray T() {
-        NativeArray<double> temp = new NativeArray<double>(this.array.Length, allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(this.shape.Length, allocator);
-        tempShape[0] = shape[1];
-        tempShape[1] = shape[0];
-        NDArray transpose = new NDArray(tempShape, temp, allocator);
-        for (int i = 0; i < shape[0]; i++) {
-            for (int j = 0; j < shape[1]; j++) {
+        NDArray transpose = new NDArray(this.shape[1], this.shape[0]);
+        for (int i = 0; i < this.shape[0]; i++) {
+            for (int j = 0; j < this.shape[1]; j++) {
                 transpose[j, i] = this[i, j];
             }
         }
@@ -427,20 +328,7 @@ public struct NDArray {
     }
 
     public static NDArray Copy(NDArray a) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray copy = new NDArray(tempShape, temp, a.allocator);
-        for (int i = 0; i < a.numElements; i++) {
-            copy[i] = a[i];
-        }
-        return copy;
-    }
-    public static NDArray Copy(NDArray a, Allocator allocator) {
-        NativeArray<double> temp = new NativeArray<double>(a.array.Length, a.allocator);
-        NativeArray<int> tempShape = new NativeArray<int>(a.shape.Length, a.allocator);
-        NativeArray<int>.Copy(a.shape, tempShape);
-        NDArray copy = new NDArray(tempShape, temp, allocator);
+        NDArray copy = new NDArray(a.shape);
         for (int i = 0; i < a.numElements; i++) {
             copy[i] = a[i];
         }

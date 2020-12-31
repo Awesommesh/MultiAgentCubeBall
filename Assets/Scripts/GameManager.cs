@@ -23,21 +23,37 @@ public class GameManager : MonoBehaviour
     public static int STATE_SIZE = 70;
     public static int NUM_OUTPUTS = 3;
     public static float PHYSICS_STEP_SIZE = 0.01f;
+    public const float X_Env_Increment = 112.5f;
+    public const float Z_Env_Increment = 60f;
     public NeuralNetwork[] agents;
     public NeuralNetwork[] critics;
     
     public int episode_iteration = 0;
     public GameObject gameEnv;
-    public Experience[] envs;
-    void Awake() {
+    public GameObject gameManager;
+    //public Experience[] envs;
+    /*void Awake() {
         Physics.autoSimulation = false;
         agents = new NeuralNetwork[TEAM_SIZE];
         critics = new NeuralNetwork[TEAM_SIZE];
-
+        float sqrt = math.sqrt(NUM_ENV);
+        if (sqrt-((int)sqrt) > 0) {
+            sqrt++;
+        }
+        int gridLength = (int)math.sqrt(NUM_ENV);
+        int numEnvCreated = 0;
         //Setup parallel environments (for now only works with one environment)
-        envs = new Experience[NUM_ENV];
-        for (int i = 0; i < NUM_ENV; i++) {
+        //envs = new Experience[NUM_ENV];
+        for (int i = 0; i < gridLength; i++) {
             //envs[i] = new Experience();
+            for (int j = 0; j < gridLength; j++) {
+                GameObject newEnv = Instantiate(gameEnv);
+                newEnv.transform.Translate(new Vector3(i*X_Env_Increment, 0.5f, j*Z_Env_Increment), Space.World);
+                if (numEnvCreated >= NUM_ENV) {
+                    break;
+                }
+                numEnvCreated++;
+            }
         }
 
         episode_iteration = 0;
@@ -69,9 +85,9 @@ public class GameManager : MonoBehaviour
         layerShapes[0][0] = 2;
         layerShapes[0][1] = 63;
         for (int i = 0; i < agents.Length; i++) {
-            NativeArray<NDArray> initialWeights = new NativeArray<NDArray>(numLayers, Allocator.Persistent);
+            NativeHashMap<int, NDArray> initialWeights = new NativeHashMap<int, NDArray>(numLayers, Allocator.Persistent);
             for (int j = 0; j < layerShapes.Length; j++) {
-                initialWeights[i] = NDArray.RandomNDArray(layerShapes[i], Allocator.Persistent);
+                initialWeights.Add(j, NDArray.RandomNDArray(layerShapes[j], Allocator.Persistent));
             }
             NativeArray<double> stdVals = new NativeArray<double>(NUM_OUTPUTS, Allocator.Persistent);
             for (int j = 0; j < stdVals.Length; j++) {
@@ -80,7 +96,7 @@ public class GameManager : MonoBehaviour
             agents[i] = new NeuralNetwork(numLayers, activationList, initialWeights, STATE_SIZE, NUM_OUTPUTS, stdVals, ALPHA, BETA1, BETA2, EPSILON);
             critics[i] = new NeuralNetwork(numLayers, activationList, initialWeights, STATE_SIZE, 1, stdVals, ALPHA, BETA1, BETA2, EPSILON);
         }
-    }
+    }*/
 
     // Start is called before the first frame update
     void Start()
@@ -101,13 +117,6 @@ public class GameManager : MonoBehaviour
 
         }
         Physics.Simulate(PHYSICS_STEP_SIZE);
-    }
-
-    public void DisposeAll() {
-        for (int i = 0; i < agents.Length; i++) {
-            agents[i].Dispose();
-            critics[i].Dispose();
-        }
     }
 
     void Reset() {

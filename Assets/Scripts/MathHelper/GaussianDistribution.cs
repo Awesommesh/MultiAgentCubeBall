@@ -1,7 +1,8 @@
 using Unity.Mathematics;
 using Unity.Collections;
+using Unity.Entities;
 
-public struct GaussianDistribution {
+public struct GaussianDistribution : IComponentData {
     public static Random sampler = new Random(GameManager.SEED);
     //Mean = 0, STD = 1;
     public static double NextGaussian() {
@@ -32,8 +33,8 @@ public struct GaussianDistribution {
         return -(math.pow(x-mean, 2)/(2*var) - math.log(std) - math.log(math.sqrt(2*math.PI)));
     }
 
-    public static NDArray log_prob(NDArray x, NDArray mean, NDArray std, Allocator allocator) {
-        NDArray log_probs = NDArray.Copy(x, allocator);
+    public static NDArray log_prob(NDArray x, NDArray mean, NDArray std) {
+        NDArray log_probs = NDArray.Copy(x);
         for (int i = 0; i < x.numElements; i++) {
             log_probs[i] = log_prob(x[i], mean[i], std[i]);
         }

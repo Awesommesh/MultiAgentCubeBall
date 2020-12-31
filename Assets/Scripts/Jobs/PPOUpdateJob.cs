@@ -1,4 +1,4 @@
-using UnityEngine.Jobs;
+/*using UnityEngine.Jobs;
 using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Burst;
@@ -7,17 +7,17 @@ using Unity.Jobs;
 [BurstCompile]
 public struct PPOUpdateJob : IJobParallelFor {
     [ReadOnly]
-    NativeArray<NDArray> minibatches;
+    NativeHashMap<int, NDArray> minibatches;
     [ReadOnly]
-    NativeArray<NDArray> states;
+    NativeHashMap<int, NDArray> states;
     [ReadOnly]
-    NativeArray<NDArray> action;
+    NativeHashMap<int, NDArray> action;
     [ReadOnly]
-    NativeArray<NDArray> old_log_probs;
+    NativeHashMap<int, NDArray> old_log_probs;
     [ReadOnly]
-    NativeArray<NDArray> returns;
+    NativeHashMap<int, NDArray> returns;
     [ReadOnly]
-    NativeArray<NDArray> advantage;
+    NativeHashMap<int, NDArray> advantage;
     [ReadOnly]
     int PPO_EPILSON;
     [ReadOnly]
@@ -51,7 +51,6 @@ public struct PPOUpdateJob : IJobParallelFor {
             NDArray backValue = -CRITIC_DISCOUNT*(2/returns[index].numElements)*(returns[index] - value[index]);
             critic.Backward(backValue);
             
-            new_log_probs.Dispose();
         }
     }
-}
+}*/

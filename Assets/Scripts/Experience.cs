@@ -1,4 +1,4 @@
-using Unity.Collections;
+/*using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Jobs;
 using UnityEngine;
@@ -17,9 +17,9 @@ public class Experience {
     //General
     GameObject ball;
     public NDArray mask;
-    public NativeArray<NDArray> states;
-    public NativeArray<NDArray> actions;
-    public NativeArray<NDArray> log_probs;
+    public NativeHashMap<int, NDArray> states;
+    public NativeHashMap<int, NDArray> actions;
+    public NativeHashMap<int, NDArray> log_probs;
     public NDArray values;
     public NDArray rewards;
     int time_step = 0;
@@ -32,9 +32,9 @@ public class Experience {
         NativeArray<int> tempShape = new NativeArray<int>(1, Allocator.Persistent);
         tempShape[0] = GameManager.EPISODE_LENGTH * GameManager.TEAM_SIZE * 2;
         mask = NDArray.NDArrayZeros(tempShape, Allocator.Persistent);
-        states = new NativeArray<NDArray>(NUM_TRANSITIONS, Allocator.Persistent);
-        actions = new NativeArray<NDArray>(NUM_TRANSITIONS, Allocator.Persistent);
-        log_probs = new NativeArray<NDArray>(NUM_TRANSITIONS, Allocator.Persistent);
+        states = new NativeHashMap<int, NDArray>(NUM_TRANSITIONS, Allocator.Persistent);
+        actions = new NativeHashMap<int, NDArray>(NUM_TRANSITIONS, Allocator.Persistent);
+        log_probs = new NativeHashMap<int, NDArray>(NUM_TRANSITIONS, Allocator.Persistent);
         tempShape = new NativeArray<int>(1, Allocator.Persistent);
         tempShape[0] = GameManager.EPISODE_LENGTH * GameManager.TEAM_SIZE * 2;
         values = NDArray.NDArrayZeros(tempShape, Allocator.Persistent);
@@ -256,4 +256,4 @@ public class Experience {
     private double Sigmoid(double x) {
         return math.exp(x) / (math.exp(x) + 1);
     }
-}
+}*/
