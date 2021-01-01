@@ -1,8 +1,9 @@
 using Unity.Collections;
 using Unity.Mathematics;
+using UnityEngine;
 public struct NDArray {
     private const double EPSILON = 0.00000000001;
-    private static Random rng = new Random(GameManager.NDArrayGenSeed);
+    private static Unity.Mathematics.Random rng = new Unity.Mathematics.Random(GameManager.NDArrayGenSeed);
     private double[] array;
 
     public int[] shape {
@@ -37,6 +38,20 @@ public struct NDArray {
             fromNative[i] = data[i];
         } 
         return fromNative;
+    }
+
+    public static NDArray fromNativeArray(NativeArray<double> data, int index, int len) {
+        NDArray fromNative = new NDArray(len, 1);
+        for (int i = index; i < index+len; i++) {
+            fromNative[i] = data[i];
+        } 
+        return fromNative;
+    }
+
+    public void fillNativeArray(NativeArray<double> data, int index, int len) {
+        for (int i = index; i < index + len; i++) {
+            data[i] = this[i-index];
+        }
     }
 
     public static NDArray NDArrayZeros(params int[] shape) {
@@ -338,10 +353,22 @@ public struct NDArray {
     private int[] getStrides() {
         int mult = 1;
         int[] strides = new int[shape.Length];
-        for (int i = 0; i < shape.Length; i++) {
-            strides[i] = shape[i] * mult;
+        for (int i = shape.Length-1; i >= 0; i--) {
+            strides[i] = mult;
             mult *= shape[i];
         }
         return strides;
+    }
+
+    //For debugging 2D NDArrays
+    public void Print() {
+        string toString = "";
+        for (int i = 0; i < shape[0]; i++) {
+            for (int j = 0; j < shape[1]; j++) {
+                toString += this[i, j] + "\t";
+            }
+            toString += "\n";
+        }
+        Debug.Log(toString);
     }
 }

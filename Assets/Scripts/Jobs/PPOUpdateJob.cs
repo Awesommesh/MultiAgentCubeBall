@@ -1,56 +1,78 @@
-/*using UnityEngine.Jobs;
+using UnityEngine.Jobs;
 using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Burst;
 using Unity.Jobs;
 
 [BurstCompile]
-public struct PPOUpdateJob : IJobParallelFor {
+public struct PPOUpdateJob : IJob {
     [ReadOnly]
-    NativeHashMap<int, NDArray> minibatches;
+    public NativeArray<int> minibatches;
     [ReadOnly]
-    NativeHashMap<int, NDArray> states;
+    public int batchInd;
     [ReadOnly]
-    NativeHashMap<int, NDArray> action;
+    public NativeArray<double> actionDists;
     [ReadOnly]
-    NativeHashMap<int, NDArray> old_log_probs;
+    public NativeArray<double> stateVals;
     [ReadOnly]
-    NativeHashMap<int, NDArray> returns;
+    public NativeArray<double> actions;
     [ReadOnly]
-    NativeHashMap<int, NDArray> advantage;
+    public NativeArray<double> old_log_probs;
     [ReadOnly]
-    int PPO_EPILSON;
+    public NativeArray<double> returns;
     [ReadOnly]
-    int CRITIC_DISCOUNT;
+    public NativeArray<double> advantages;
     [ReadOnly]
-    int ENTROPY_BETA;
-    NeuralNetwork actor;
-    NeuralNetwork critic;
-    
-    public void Execute(int i) {
-        for (int j = 0; j < minibatches[i].numElements; j++) {
-            int index = (int)minibatches[i][j];
-            NDArray dist = actor.Forward(states[index]);
-            NDArray value = critic.Forward(states[index]);
-            double entropy = GaussianDistribution.entropy(actor.log_std.Mean());
-            NDArray new_log_probs = GaussianDistribution.log_prob(action[index], dist, actor.log_std, Allocator.TempJob);
-            NDArray ratio = NDArray.Exp(new_log_probs - old_log_probs[index]);
-            NDArray surr1 = ratio * advantage[index];
-            NDArray surr2 = NDArray.Clamp(ratio, 1-PPO_EPILSON, 1+PPO_EPILSON) * advantage[index];
-            double actor_loss = -(NDArray.Min(surr1, surr2)).Mean();
-            double critic_loss = (NDArray.Pow(returns[index]-value[index], 2)).Mean();
-            double total_loss = CRITIC_DISCOUNT * critic_loss + actor_loss - ENTROPY_BETA * entropy;
+    public NativeArray<double> log_std;
+    [ReadOnly]
+    public double log_std_mean;
+    [ReadOnly]
+    public int NUM_ACTIONS;
+    [ReadOnly]
+    public double PPO_EPILSON;
+    [ReadOnly]
+    public double CRITIC_DISCOUNT;
+    [ReadOnly]
+    public double ENTROPY_BETA;
+    [ReadOnly]
+    public int MINI_BATCH_SIZE;
 
-            //Actor NN BackProp
-            NDArray minBacksurr1 = -(1/surr1.numElements) * (surr1 < surr2) * surr1;
-            NDArray minBacksurr2 = -(1/surr1.numElements) * (surr2 < surr1) * NDArray.Clamp_Back(ratio, 1-PPO_EPILSON, 1+PPO_EPILSON) * surr1;
-            NDArray minBackDist = (minBacksurr1 + minBacksurr2) * GaussianDistribution.log_prob_back(action[index], dist, actor.log_std);
-            actor.Backward(minBackDist);
+    [WriteOnly] 
+    public NativeArray<double> actorGrad;
+    [WriteOnly]
+    public NativeArray<double> criticGrad;
 
-            //Critic NN BackProp
-            NDArray backValue = -CRITIC_DISCOUNT*(2/returns[index].numElements)*(returns[index] - value[index]);
-            critic.Backward(backValue);
+    public void Execute() {
+        int minibatch_ind = batchInd*MINI_BATCH_SIZE;
+        double actor_loss = 0;
+        double critic_loss = 0;
+        double entropy = GaussianDistribution.entropy(log_std_mean);
+        for (int j = minibatch_ind; j < minibatch_ind + MINI_BATCH_SIZE; j++) {
+            int index = minibatches[j];
+            int actionIndex = index*NUM_ACTIONS;
+            NativeArray<double> new_log_probs = GaussianDistribution.log_prob(actions, actionDists, log_std, actionIndex, NUM_ACTIONS, Allocator.TempJob);
+            NativeArray<double> log_prob_back = GaussianDistribution.log_prob_back(actions, actionDists, log_std, actionIndex, NUM_ACTIONS, Allocator.TempJob);
+            for (int k = 0; k < NUM_ACTIONS; k++) {
+                double ratio = math.exp(new_log_probs[k] - old_log_probs[actionIndex + k]);
+                double surr1 = ratio * advantages[index];
+                double surr2 = math.clamp(ratio, 1-PPO_EPILSON, 1+PPO_EPILSON) * advantages[index];
+                actor_loss += math.min(surr1, surr2);
+
+                //Actor Grad
+                int surr1Less = surr1 < surr2 ? 1 : 0;
+                int surr2Less = surr2 < surr1 ? 1 : 0;
+                int clamp_back = (ratio > 1+PPO_EPILSON || ratio < 1-PPO_EPILSON) ? 0 : 1;
+                actorGrad[actionIndex + k] = (-1/MINI_BATCH_SIZE*NUM_ACTIONS)*(surr1Less * surr1 + surr2Less * clamp_back * surr1) * log_prob_back[k];
+            }
             
+            critic_loss += math.pow(returns[j] - stateVals[j], 2);
+
+            //Critic Grad
+            criticGrad[j] = -CRITIC_DISCOUNT * (2 / MINI_BATCH_SIZE) * (returns[j] - stateVals[j]);
         }
+        actor_loss /= MINI_BATCH_SIZE*NUM_ACTIONS;
+        actor_loss *= -1;
+        critic_loss /= MINI_BATCH_SIZE;
+        double total_loss = CRITIC_DISCOUNT * critic_loss + actor_loss - ENTROPY_BETA * entropy;
     }
-}*/
+}
