@@ -92,4 +92,16 @@ public struct NativeNDOps : IComponentData {
             output[i] = input[i];
         }
     }
+
+    //For debugging NativeArrays
+    public static void Print(NativeArray<double> data, NativeArray<int> shape){
+        string str = "";
+        for (var i = 0; i<shape[0]; i++){
+            for (var j=0; j<shape[1]; j++){
+                str += data[i*shape[1]+j] + "\t";
+            }
+            str += "\n";
+        }
+        UnityEngine.Debug.Log(str);
+    }
 }
