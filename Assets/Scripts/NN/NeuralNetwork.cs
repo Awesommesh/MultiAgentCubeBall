@@ -15,7 +15,8 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
     ActivationType[] activations;
     int numInputs;
     int numOutputs;
-    public NDArray log_std;
+    public NativeArray<double> log_std;
+    public double log_std_mean;
     NDArray[] inputs;
     NDArray[] activationInputs;
 
@@ -38,8 +39,13 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
         this.epsilon = epsilon;
         inputs = new NDArray[numLayers];
         activationInputs = new NDArray[numLayers];
-        log_std = new NDArray(numOutputs);
-        log_std.Fill(log_stdVals);
+        log_std = new NativeArray<double>(log_stdVals.Length, Allocator.Persistent);
+        log_std_mean = 0;
+        for (int i = 0; i < log_stdVals.Length; i++) {
+            log_std[i] = log_stdVals[i];
+            log_std_mean += log_stdVals[i];
+        }
+        log_std_mean /= log_stdVals.Length;
         iteration = 0;
     }
 
@@ -151,9 +157,5 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
             nativeS_dw.Dispose();
         }
         iteration++;
-    }
-
-    private NDArray Sigmoid(NDArray x) {
-        return NDArray.Exp(x) / (NDArray.Exp(x) + 1);
     }
 }

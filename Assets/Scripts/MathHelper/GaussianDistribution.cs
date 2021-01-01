@@ -1,7 +1,9 @@
 using Unity.Mathematics;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Burst;
 
+[BurstCompile]
 public struct GaussianDistribution : IComponentData {
     public static Random sampler = new Random(GameManager.SEED);
     //Mean = 0, STD = 1;
@@ -41,9 +43,34 @@ public struct GaussianDistribution : IComponentData {
         return log_probs;
     }
 
+    public static NativeArray<double> log_prob(NativeArray<double> x, NativeArray<double> mean, NativeArray<double> std, Allocator allocator) {
+        NativeArray<double> log_probs = new NativeArray<double> (x.Length, allocator);
+        for (int i = 0; i < x.Length; i++) {
+            log_probs[i] = log_prob(x[i], mean[i], std[i]);
+        }
+        return log_probs;
+    }
+    public static NativeArray<double> log_prob(NativeArray<double> x, NativeArray<double> mean, NativeArray<double> std, 
+        int startInd, int len, Allocator allocator) {
+        NativeArray<double> log_probs = new NativeArray<double> (len, allocator);
+        for (int i = startInd; i < startInd+len; i++) {
+            log_probs[i] = log_prob(x[i], mean[i], std[i]);
+        }
+        return log_probs;
+    }
+
     //Backwards of log_prob = grad * ((x_t-u(s_t))/std^2)
     public static NDArray log_prob_back(NDArray x, NDArray mean, NDArray std) {
         return (x-mean)/NDArray.Pow(std, 2);
+    }
+
+    public static NativeArray<double> log_prob_back(NativeArray<double> x, NativeArray<double> mean, NativeArray<double> std, 
+        int startInd, int len, Allocator allocator) {
+        NativeArray<double> log_prob_back = new NativeArray<double> (len, allocator);
+        for (int i = startInd; i < startInd+len; i++) {
+            log_prob_back[i] = (x[i]-mean[i])/math.pow(std[i], 2);
+        }
+        return log_prob_back;
     }
 
     public static double entropy(double std) {
