@@ -25,21 +25,21 @@ public struct NNStepBackwardJob : IJob {
 
     public void Execute() {
         //Activation Gradient
-        NativeArray<double> activtionGrad = new NativeArray<double>(grad.Length, Allocator.TempJob);
-        NativeArray<int> activationGradShape =  new NativeArray<int>(2, Allocator.TempJob);
+        NativeArray<double> activtionGrad = new NativeArray<double>(grad.Length, Allocator.Temp);
+        NativeArray<int> activationGradShape =  new NativeArray<int>(2, Allocator.Temp);
         activationGradShape[0] = activationInput.Length;
         activationGradShape[1] = 1;
         NativeNDOps.ActivationFunctionBack(activation, activationInput, grad, activtionGrad);
         
         //Weights Gradient = activationGrad.Dot(layerInput.T());
-        NativeArray<int> layerInputShape =  new NativeArray<int>(2, Allocator.TempJob);
+        NativeArray<int> layerInputShape =  new NativeArray<int>(2, Allocator.Temp);
         layerInputShape[0] = 1;
         layerInputShape[1] = layerInput.Length;
         NativeNDOps.Dot(activtionGrad, activationGradShape, layerInput, layerInputShape, weightsGrad);
 
         //Layer Gradient = weights.T().Dot(activationGrad)
-        NativeArray<double> weightsTranspose = new NativeArray<double>(weights.Length, Allocator.TempJob);
-        NativeArray<int> weightsTransposeShape = new NativeArray<int>(2, Allocator.TempJob);
+        NativeArray<double> weightsTranspose = new NativeArray<double>(weights.Length, Allocator.Temp);
+        NativeArray<int> weightsTransposeShape = new NativeArray<int>(2, Allocator.Temp);
         weightsTransposeShape[0] = weightsShape[1];
         weightsTransposeShape[1] = weightsShape[0];
         NativeNDOps.Transpose(weights, weightsShape, weightsTranspose);

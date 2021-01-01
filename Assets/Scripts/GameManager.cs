@@ -7,7 +7,7 @@ public class GameManager : MonoBehaviour
 {
     public static uint SEED = 1;
     public static uint NDArrayGenSeed = 2;
-    public uint MINI_BATCH_SEED = 0;
+    public uint MINI_BATCH_SEED = 3;
     public int NUM_ENV = 1;
     public static double GAE_LAMBDA = 0.95;
     public static double GAMMA = 0.99;
@@ -21,23 +21,24 @@ public class GameManager : MonoBehaviour
     public int PPO_EPOCHS = 10;
     public static int TEAM_SIZE = 5;
     public static double FIELD_LENGTH = 90;
-    public static double MAX_SPEED = 5;
+    public static double MAX_SPEED = 50;
     public int numLayers;
-    public static int STATE_SIZE = 70;
+    public static int STATE_SIZE = 76;
     public const double PPO_EPILSON = 0.2;
     public const double CRITIC_DISCOUNT = 0.5;
     public const double ENTROPY_BETA = 0.001;
-    //Ou
+    public int interval = 4;
     public static int NUM_ACTIONS = 3;
     public static float PHYSICS_STEP_SIZE = 0.01f;
     public const float X_Env_Increment = 112.5f;
     public const float Z_Env_Increment = 60f;
     public NeuralNetwork[] agents;
     public NeuralNetwork[] critics;
-    
+    public int[,] layerShapes;
+    public double[] actorLog_Std;
+    public double[] criticLog_Std;
     public int episode_iteration = 0;
     public GameObject gameEnv;
-    public GameObject gameManager;
 
     //PPO Experience Accumulation
     private NativeArray<double> states;
@@ -45,15 +46,33 @@ public class GameManager : MonoBehaviour
     private NativeArray<double> log_probs;
     private NativeArray<double> returns;
     private NativeArray<double> advantages;
-    private NativeArray<double> actorGrads;
-    private NativeArray<double> criticGrads;
 
     private NativeArray<int> shuffle;
     private NativeArray<int> minibatches;
 
-    //public Experience[] envs;
+    public Experience[] envs;
     void Awake() {
         Physics.autoSimulation = false;
+        layerShapes = new int[numLayers,2];
+        //Have to hard code layer shapes ...
+        //layer 1
+        layerShapes[0, 0] = 228;
+        layerShapes[0, 1] = STATE_SIZE;
+        //layer 2
+        layerShapes[1, 0] = 684;
+        layerShapes[1, 1] = 228;
+        //layer 3
+        layerShapes[2, 0] = 342;
+        layerShapes[2, 1] = 684;
+        //layer 4
+        layerShapes[3, 0] = 171;
+        layerShapes[3, 1] = 342;
+        //layer 5
+        layerShapes[4, 0] = 3;
+        layerShapes[4, 1] = 171;
+
+        actorLog_Std = new double[NUM_ACTIONS];
+        criticLog_Std = new double[1];
         agents = new NeuralNetwork[TEAM_SIZE];
         critics = new NeuralNetwork[TEAM_SIZE];
         float sqrt = math.sqrt(NUM_ENV);
@@ -63,15 +82,25 @@ public class GameManager : MonoBehaviour
         int gridLength = (int)math.sqrt(NUM_ENV);
         int numEnvCreated = 0;
         //Setup parallel environments (for now only works with one environment)
-        //envs = new Experience[NUM_ENV];
+        envs = new Experience[NUM_ENV];
         for (int i = 0; i < gridLength; i++) {
-            //envs[i] = new Experience();
             for (int j = 0; j < gridLength; j++) {
-                GameObject newEnv = Instantiate(gameEnv);
-                newEnv.transform.Translate(new Vector3(i*X_Env_Increment, 0.5f, j*Z_Env_Increment), Space.World);
                 if (numEnvCreated >= NUM_ENV) {
                     break;
                 }
+                GameObject newEnv = Instantiate(gameEnv);
+                newEnv.transform.Translate(new Vector3(i*X_Env_Increment, 0.5f, j*Z_Env_Increment), Space.World);
+                GameObject newBall = newEnv.transform.Find("Ball").gameObject;
+                GameObject newBlueGoal = newEnv.transform.Find("GoalAreaBlue").gameObject;
+                GameObject newRedGoal = newEnv.transform.Find("GoalAreaRed").gameObject;
+                GameObject[] newBlueTeam = new GameObject[TEAM_SIZE];
+                GameObject[] newRedTeam = new GameObject[TEAM_SIZE];
+                for (int k = 0; k < TEAM_SIZE; k++) {
+                    newBlueTeam[k] = newEnv.transform.Find("BlueTeam/Blue"+(k+1)).gameObject;
+                    Debug.Log(newBlueTeam[k]);
+                    newRedTeam[k] = newEnv.transform.Find("RedTeam/Red"+(k+1)).gameObject;
+                }
+                envs[i] = new Experience(newBall, newBlueGoal, newRedGoal, newBlueTeam, newRedTeam);
                 numEnvCreated++;
             }
         }
@@ -85,72 +114,79 @@ public class GameManager : MonoBehaviour
         states = new NativeArray<double>(BATCH_SIZE*STATE_SIZE, Allocator.Persistent);
         actions = new NativeArray<double>(BATCH_SIZE*NUM_ACTIONS, Allocator.Persistent);
         log_probs = new NativeArray<double>(BATCH_SIZE*NUM_ACTIONS, Allocator.Persistent);
-        actorGrads = new NativeArray<double>(BATCH_SIZE*NUM_ACTIONS, Allocator.Persistent);
         returns = new NativeArray<double>(BATCH_SIZE, Allocator.Persistent);
         advantages = new NativeArray<double>(BATCH_SIZE, Allocator.Persistent);
-        criticGrads = new NativeArray<double>(BATCH_SIZE, Allocator.Persistent);
         episode_iteration = 0;
 
-        /*//Initialize NN randomly with correct architecture etc.
-        NativeArray<ActivationType> activationList = new NativeArray<ActivationType>(numLayers, Allocator.Persistent);
+        //Initialize NN randomly with correct architecture etc.
+        ActivationType[] activationList = new ActivationType[numLayers];
         activationList[0] = ActivationType.ReLU;
         activationList[1] = ActivationType.ReLU;
         activationList[2] = ActivationType.ReLU;
         activationList[3] = ActivationType.ReLU;
         activationList[4] = ActivationType.None;
-        NativeArray<int>[] layerShapes = new NativeArray<int>[numLayers];
-        for (int i = 0; i < layerShapes.Length; i++) {
-            layerShapes[i] = new NativeArray<int>(2, Allocator.Persistent);
-        }
-        //Hidden Layer 1: 70 inputs, 210 outputs;
-        layerShapes[0][0] = 210;
-        layerShapes[0][1] = 70;
-        //Hidden Layer 2: 210 inputs, 630 outputs;
-        layerShapes[1][0] = 630;
-        layerShapes[1][1] = 210;
-        //Hidden Layer 3: 630 inputs, 315 outputs;
-        layerShapes[2][0] = 315;
-        layerShapes[2][1] = 630;
-        //Hidden Layer 4: 315 inputs, 63 outputs;
-        layerShapes[3][0] = 63;
-        layerShapes[3][1] = 315;
-        //Hidden Layer 5: 63 inputs, 2 outputs;
-        layerShapes[0][0] = 2;
-        layerShapes[0][1] = 63;
-        for (int i = 0; i < agents.Length; i++) {
-            NativeHashMap<int, NDArray> initialWeights = new NativeHashMap<int, NDArray>(numLayers, Allocator.Persistent);
-            for (int j = 0; j < layerShapes.Length; j++) {
-                initialWeights.Add(j, NDArray.RandomNDArray(layerShapes[j], Allocator.Persistent));
-            }
-            NativeArray<double> stdVals = new NativeArray<double>(NUM_ACTIONS, Allocator.Persistent);
-            for (int j = 0; j < stdVals.Length; j++) {
-                stdVals[j] = 0;
-            }
-            agents[i] = new NeuralNetwork(numLayers, activationList, initialWeights, STATE_SIZE, NUM_ACTIONS, stdVals, ALPHA, BETA1, BETA2, EPSILON);
-            critics[i] = new NeuralNetwork(numLayers, activationList, initialWeights, STATE_SIZE, 1, stdVals, ALPHA, BETA1, BETA2, EPSILON);
-        }
-        */
-    }
-
-    // Start is called before the first frame update
-    void Start()
-    {
         
+        NDArray[] weights = new NDArray[numLayers];
+        for (int i = 0; i < agents.Length; i++) {
+            for (int j = 0; j < numLayers; j++) {
+                int[]curLayerShape = new int[2];
+                curLayerShape[0] = layerShapes[j, 0];
+                curLayerShape[1] = layerShapes[j, 1];
+                weights[j] = NDArray.HeInitializedNDArray(curLayerShape, layerShapes[j, 1]);
+            }
+            agents[i] = new NeuralNetwork(numLayers, activationList, weights, STATE_SIZE, NUM_ACTIONS, actorLog_Std, ALPHA, BETA1, BETA2, EPSILON);
+            for (int j = 0; j < numLayers; j++) {
+                weights[j] = NDArray.RandomNDArray(layerShapes[j, 0], layerShapes[j, 1]);
+            }
+            critics[i] = new NeuralNetwork(numLayers, activationList, weights, STATE_SIZE, 1, criticLog_Std, ALPHA, BETA1, BETA2, EPSILON);
+        }
     }
 
     // Update is called once per frame
     void Update()
     {
-        if (episode_iteration < EPISODE_LENGTH) {
-            //Perform Blue Team Actions
-            
-            //Perform Red Team Actions
-            episode_iteration++;
+        if (Time.frameCount % interval == 0) {
+            if (episode_iteration < EPISODE_LENGTH) {
+                for (int i = 0; i < NUM_ENV; i++) {
+                    envs[i].stepForward(agents, critics, agents, critics);
+                }
+                episode_iteration++;
+            } else if (episode_iteration == EPISODE_LENGTH) {
+                for (int i = 0; i < NUM_ENV; i++) {
+                    envs[i].getNextValues(critics, critics);
+                    envs[i].CalculateGAE();
+                    //Merge current environment data with global experience data
+                    //For each player on given env append all of their experiences to global experience pool
+                    int globalInd = 0;
+                    for (int j = 0; j < TEAM_SIZE; j++) {
+                        for (int k = 0; k < EPISODE_LENGTH; k++) {
+                            //Blue and Red Agent j's kth time_step
+                            int nextGlobalInd = globalInd + 1;
+                            for (int l = 0; l < STATE_SIZE; l++) {
+                                states[globalInd*STATE_SIZE + l] = envs[i].blueStates[k, l];
+                                states[nextGlobalInd*STATE_SIZE + l] = envs[i].redStates[k, l];
+                            }
+                            for (int l = 0; l < NUM_ACTIONS; l++) {
+                                actions[globalInd*NUM_ACTIONS + l] = envs[i].blueActions[k, j, l];
+                                log_probs[globalInd*NUM_ACTIONS + l] = envs[i].blueLog_Probs[k, j, l];
+                                actions[nextGlobalInd*NUM_ACTIONS + l] = envs[i].redActions[k, j, l];
+                                log_probs[nextGlobalInd*NUM_ACTIONS + l] = envs[i].redLog_Probs[k, j, l];
+                            }
+                            returns[globalInd] = envs[i].blueReturns[k*TEAM_SIZE + j];
+                            advantages[globalInd] = envs[i].blueAdvantages[k*TEAM_SIZE + j];
+                            returns[nextGlobalInd] = envs[i].redReturns[k*TEAM_SIZE + j];
+                            advantages[nextGlobalInd] = envs[i].redAdvantages[k*TEAM_SIZE + j];
+                            globalInd+=2;
+                        }
+                    }
+                }
+                for (int i = 0; i < PPO_EPOCHS; i++) {
+                    PPO_Update();
+                }
+            }
+            Physics.Simulate(PHYSICS_STEP_SIZE);
         }
-        if (episode_iteration == EPISODE_LENGTH) {
-            PPO_Update();
-        }
-        Physics.Simulate(PHYSICS_STEP_SIZE);
+        
     }
 
     void PPO_Update() {
@@ -208,14 +244,32 @@ public class GameManager : MonoBehaviour
                 JobHandle ppoJobHandle = ppoJob.Schedule();
                 ppoJobHandle.Complete();
 
+                actionDists.Dispose();
+                stateVals.Dispose();
+
                 for (int k = 0; k < MINI_BATCH_SIZE; k++) {
                     NDArray actorGrads = NDArray.fromNativeArray(nativeActorGrads, k * NUM_ACTIONS, NUM_ACTIONS);
                     agents[i].Backward(actorGrads);
                     NDArray criticGrads = NDArray.fromNativeArray(nativeCriticGrads, k, 1);
                     critics[i].Backward(criticGrads);
                 }
+                nativeActorGrads.Dispose();
+                nativeCriticGrads.Dispose();
             }
             
+        }
+    }
+
+    void Dispose() {
+        states.Dispose();
+        actions.Dispose();
+        log_probs.Dispose();
+        returns.Dispose();
+        advantages.Dispose();
+        shuffle.Dispose();
+        minibatches.Dispose();
+        for (int i = 0; i < NUM_ENV; i++) {
+            envs[i].Dispose();
         }
     }
 

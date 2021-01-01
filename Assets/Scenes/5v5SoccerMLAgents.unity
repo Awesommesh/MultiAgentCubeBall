@@ -235,13 +235,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c643f4e567f1a40ffb2ba81c6e820429, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  MINI_BATCH_SEED: 0
   NUM_ENV: 1
   MINI_BATCH_SIZE: 64
   PPO_EPOCHS: 10
   numLayers: 5
+  actorLog_Std: []
+  criticLog_Std: []
   episode_iteration: 0
   gameEnv: {fileID: 5599166562531727043, guid: 644466799e3e146b5ac39061b804d6b1, type: 3}
-  gameManager: {fileID: 898156934}
 --- !u!4 &898156936
 Transform:
   m_ObjectHideFlags: 0

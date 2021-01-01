@@ -70,6 +70,15 @@ public struct NDArray {
         return random;
     }
 
+    public static NDArray HeInitializedNDArray(int[] shape, int prevSize) {
+        NDArray he = new NDArray(shape);
+        for (int i = 0; i < he.numElements; i++) {
+            he[i] = GaussianDistribution.NextGaussian() * math.sqrt(2/prevSize);
+        }
+        return he;
+
+    }
+
     public NDArray (params int[] shape) {
         this.shape = shape;
         int e = 1;

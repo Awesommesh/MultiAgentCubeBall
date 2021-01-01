@@ -2,20 +2,24 @@ using Unity.Mathematics;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Burst;
+using System;
 
 [BurstCompile]
 public struct GaussianDistribution : IComponentData {
-    public static Random sampler = new Random(GameManager.SEED);
+    public static Unity.Mathematics.Random sampler = new Unity.Mathematics.Random(GameManager.SEED);
     //Mean = 0, STD = 1;
     public static double NextGaussian() {
-        double v1, v2, s;
+        /*double v1, v2, s;
         do {
             v1 = 2 * sampler.NextDouble() - 1;
             v2 = 2 * sampler.NextDouble() - 1;
             s = v1 * v2 + v2 * v2;
         } while (s >= 1 || s == 0);
         s = math.sqrt(-2*math.log(s)/s);
-        return v1 * s;
+        return v1 * s;*/
+        double u1 = 1 - sampler.NextDouble();
+        double u2 = 1 - sampler.NextDouble();
+        return math.sqrt(-2 * math.log(u1)) * math.sin(2 * math.PI * u2);
     }
 
     public static double NextGaussian(double mean, double std) {

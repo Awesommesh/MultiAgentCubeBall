@@ -14,13 +14,12 @@ public struct NNStepForwardJob : IJob {
     [ReadOnly]
     public ActivationType activation;
     
-    [WriteOnly]
     public NativeArray<double> layerOutput;
     [WriteOnly]
     public NativeArray<double> activationOutput;
 
     public void Execute() {
-        NativeArray<int> inputShape = new NativeArray<int>(2, Allocator.TempJob);
+        NativeArray<int> inputShape = new NativeArray<int>(2, Allocator.Temp);
         inputShape[0] = input.Length;
         inputShape[1] = 1;
         NativeNDOps.Dot(weights, weightsShape, input, inputShape, layerOutput);

@@ -50,8 +50,8 @@ public struct PPOUpdateJob : IJob {
         for (int j = minibatch_ind; j < minibatch_ind + MINI_BATCH_SIZE; j++) {
             int index = minibatches[j];
             int actionIndex = index*NUM_ACTIONS;
-            NativeArray<double> new_log_probs = GaussianDistribution.log_prob(actions, actionDists, log_std, actionIndex, NUM_ACTIONS, Allocator.TempJob);
-            NativeArray<double> log_prob_back = GaussianDistribution.log_prob_back(actions, actionDists, log_std, actionIndex, NUM_ACTIONS, Allocator.TempJob);
+            NativeArray<double> new_log_probs = GaussianDistribution.log_prob(actions, actionDists, log_std, actionIndex, NUM_ACTIONS, Allocator.Temp);
+            NativeArray<double> log_prob_back = GaussianDistribution.log_prob_back(actions, actionDists, log_std, actionIndex, NUM_ACTIONS, Allocator.Temp);
             for (int k = 0; k < NUM_ACTIONS; k++) {
                 double ratio = math.exp(new_log_probs[k] - old_log_probs[actionIndex + k]);
                 double surr1 = ratio * advantages[index];

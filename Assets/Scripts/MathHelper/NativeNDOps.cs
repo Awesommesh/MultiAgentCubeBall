@@ -73,7 +73,7 @@ public struct NativeNDOps : IComponentData {
     }
 
     public static double Sigmoid(double x) {
-        return math.exp(x) / (math.exp(x) + 1);
+        return 1 / (math.exp(-x) + 1);
     }
 
     public static double ReLU_back(double x) {

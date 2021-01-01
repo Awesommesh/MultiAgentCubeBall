@@ -70,7 +70,7 @@ public class Experience {
 
     public void stepForward(NeuralNetwork[] blueAgents, NeuralNetwork[] blueCritics, NeuralNetwork[] redAgents, NeuralNetwork[] redCritics) {
         Rigidbody rb;
-        Mesh mesh;
+        MeshRenderer mesh;
         int stateIndex = 0;
 
         //Get Mask for time_step
@@ -181,7 +181,7 @@ public class Experience {
 
         //Blue Team Specific State Setup
         //Friendly goal (!!! z is width and y is height !!!)
-        mesh = blueGoal.GetComponent<Mesh>();
+        mesh = blueGoal.GetComponent<MeshRenderer>();
         blueStates[time_step, stateIndex] = blueGoal.transform.position.x;
         curBlueState[stateIndex] = blueGoal.transform.position.x;
         stateIndex++;
@@ -199,7 +199,7 @@ public class Experience {
         stateIndex++;
 
         //Enemy goal (!!! z is width and y is height !!!)
-        mesh = redGoal.GetComponent<Mesh>();
+        mesh = redGoal.GetComponent<MeshRenderer>();
         blueStates[time_step, stateIndex] = redGoal.transform.position.x;
         curBlueState[stateIndex] = redGoal.transform.position.x;
         stateIndex++;
@@ -221,7 +221,7 @@ public class Experience {
 
         //Red Team Specific State Setup
         //Friendly goal (!!! z is width and y is height !!!)
-        mesh = redGoal.GetComponent<Mesh>();
+        mesh = redGoal.GetComponent<MeshRenderer>();
         redStates[time_step, stateIndex] = redGoal.transform.position.x;
         curRedState[stateIndex] = redGoal.transform.position.x;
         stateIndex++;
@@ -239,7 +239,7 @@ public class Experience {
         stateIndex++;
 
         //Enemy goal (!!! z is width and y is height !!!)
-        mesh = blueGoal.GetComponent<Mesh>();
+        mesh = blueGoal.GetComponent<MeshRenderer>();
         redStates[time_step, stateIndex] = blueGoal.transform.position.x;
         curRedState[stateIndex] = blueGoal.transform.position.x;
         stateIndex++;
@@ -256,10 +256,13 @@ public class Experience {
         curRedState[stateIndex] = mesh.bounds.size.y;
         stateIndex++;
         
-        for (int i = 0; i  < GameManager.TEAM_SIZE; i++) {
+        for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
             //Forward Step on Blue Agents + Critics
             NDArray actionDists = blueAgents[i].Forward(curBlueState);
-            for (int j = 0; j < actionDists.numElements; i++) {
+            for (int j = 0; j < GameManager.NUM_ACTIONS; j++) {
+                if (j == 2) {
+                    UnityEngine.Debug.Log(actionDists[j]);
+                }
                 blueActions[time_step, i, j] = GaussianDistribution.NextGaussian(actionDists[j], blueAgents[i].log_std[j]);
                 blueLog_Probs[time_step, i, j] = GaussianDistribution.log_prob(blueActions[time_step, i, j], actionDists[j], blueAgents[i].log_std[j]);
             }
@@ -267,7 +270,7 @@ public class Experience {
 
             //Forward Step on Red Agents + Critics
             actionDists = redAgents[i].Forward(curRedState);
-            for (int j = 0; j < actionDists.numElements; i++) {
+            for (int j = 0; j < GameManager.NUM_ACTIONS; j++) {
                 redActions[time_step, i, j] = GaussianDistribution.NextGaussian(actionDists[j], redAgents[i].log_std[j]);
                 redLog_Probs[time_step, i, j] = GaussianDistribution.log_prob(redActions[time_step, i, j], actionDists[j], redAgents[i].log_std[j]);
             }
@@ -280,12 +283,14 @@ public class Experience {
             rb = bluePlayers[i].GetComponent<Rigidbody>();
             Vector3d force = Vector3d.Normalize(new Vector3d(blueActions[time_step, i, 0], 0, blueActions[time_step, i, 1]));
             force *= GameManager.MAX_SPEED*Sigmoid(blueActions[time_step, i, 2]);
+            UnityEngine.Debug.Log(force);
             rb.AddForce(new Vector3((float)force[0], (float)force[1], (float)force[2]));
 
             //Red Team Actions
             rb = redPlayers[i].GetComponent<Rigidbody>();
             force = Vector3d.Normalize(new Vector3d(redActions[time_step, i, 0], 0, redActions[time_step, i, 1]));
             force *= GameManager.MAX_SPEED*Sigmoid(redActions[time_step, i, 2]);
+            UnityEngine.Debug.Log(force);
             rb.AddForce(new Vector3((float)force[0], (float)force[1], (float)force[2]));
         }
 
@@ -297,7 +302,7 @@ public class Experience {
         NDArray curBlueState = new NDArray(GameManager.STATE_SIZE);
         NDArray curRedState = new NDArray(GameManager.STATE_SIZE);
         Rigidbody rb;
-        Mesh mesh;
+        MeshRenderer mesh;
         int stateIndex = 0;
         for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
             curBlueState[stateIndex] = bluePlayers[i].transform.position.x;
@@ -361,7 +366,7 @@ public class Experience {
 
         //Blue Team Specific State Setup
         //Friendly goal (!!! z is width and y is height !!!)
-        mesh = blueGoal.GetComponent<Mesh>();
+        mesh = blueGoal.GetComponent<MeshRenderer>();
         curBlueState[stateIndex] = blueGoal.transform.position.x;
         stateIndex++;
         curBlueState[stateIndex] = blueGoal.transform.position.y;
@@ -374,7 +379,7 @@ public class Experience {
         stateIndex++;
 
         //Enemy goal (!!! z is width and y is height !!!)
-        mesh = redGoal.GetComponent<Mesh>();
+        mesh = redGoal.GetComponent<MeshRenderer>();
         curBlueState[stateIndex] = redGoal.transform.position.x;
         stateIndex++;
         curBlueState[stateIndex] = redGoal.transform.position.y;
@@ -391,7 +396,7 @@ public class Experience {
 
         //Red Team Specific State Setup
         //Friendly goal (!!! z is width and y is height !!!)
-        mesh = redGoal.GetComponent<Mesh>();
+        mesh = redGoal.GetComponent<MeshRenderer>();
         curRedState[stateIndex] = redGoal.transform.position.x;
         stateIndex++;
         curRedState[stateIndex] = redGoal.transform.position.y;
@@ -404,7 +409,7 @@ public class Experience {
         stateIndex++;
 
         //Enemy goal (!!! z is width and y is height !!!)
-        mesh = blueGoal.GetComponent<Mesh>();
+        mesh = blueGoal.GetComponent<MeshRenderer>();
         curRedState[stateIndex] = blueGoal.transform.position.x;
         stateIndex++;
         curRedState[stateIndex] = blueGoal.transform.position.y;
@@ -519,6 +524,6 @@ public class Experience {
 
     [BurstCompile]
     private double Sigmoid(double x) {
-        return math.exp(x) / (math.exp(x) + 1);
+        return 1 / (math.exp(-x) + 1);
     }
 }

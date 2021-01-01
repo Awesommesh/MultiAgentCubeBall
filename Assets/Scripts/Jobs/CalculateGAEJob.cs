@@ -27,7 +27,6 @@ public struct CalculateGAEJob : IJob {
 
     [WriteOnly]
     public NativeArray<double> returns;
-    [WriteOnly]
     public NativeArray<double> advantages;
     
     public void Execute() {
