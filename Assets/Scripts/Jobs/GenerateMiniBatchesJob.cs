@@ -16,7 +16,7 @@ public struct GenerateMiniBatchesJob : IJobParallelFor {
     public NativeArray<int> shuffle;
 
     public void Execute(int i) {
-        Random sampler = new Random(seed);
+        Random sampler = new Random(3);
         int startInd = i*MINI_BATCH_SIZE;
         for (int j = shuffle.Length-1; j > shuffle.Length-1-MINI_BATCH_SIZE; j--) {
             int randIndex = (int)sampler.NextDouble()*(j+1);

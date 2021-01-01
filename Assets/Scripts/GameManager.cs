@@ -7,7 +7,7 @@ public class GameManager : MonoBehaviour
 {
     public static uint SEED = 1;
     public static uint NDArrayGenSeed = 2;
-    public uint MINI_BATCH_SEED = 3;
+    public uint MINI_BATCH_SEED = 4;
     public int NUM_ENV = 1;
     public static double GAE_LAMBDA = 0.95;
     public static double GAMMA = 0.99;
@@ -15,9 +15,9 @@ public class GameManager : MonoBehaviour
     public static double BETA1 = 0.9;
     public static double BETA2 = 0.999;
     public static double EPSILON = 0.00000001;
-    public static int EPISODE_LENGTH = 256;
+    public static int EPISODE_LENGTH = 64;
     public static int BATCH_SIZE;
-    public int MINI_BATCH_SIZE = 64;
+    public int MINI_BATCH_SIZE = 16;
     public int PPO_EPOCHS = 10;
     public static int TEAM_SIZE = 5;
     public static double FIELD_LENGTH = 90;
@@ -72,7 +72,11 @@ public class GameManager : MonoBehaviour
         layerShapes[4, 1] = 171;
 
         actorLog_Std = new double[NUM_ACTIONS];
+        for (int i = 0; i < NUM_ACTIONS; i++) {
+            actorLog_Std[i] = 0;
+        }
         criticLog_Std = new double[1];
+        criticLog_Std[0] = 0;
         agents = new NeuralNetwork[TEAM_SIZE];
         critics = new NeuralNetwork[TEAM_SIZE];
         float sqrt = math.sqrt(NUM_ENV);
@@ -97,7 +101,6 @@ public class GameManager : MonoBehaviour
                 GameObject[] newRedTeam = new GameObject[TEAM_SIZE];
                 for (int k = 0; k < TEAM_SIZE; k++) {
                     newBlueTeam[k] = newEnv.transform.Find("BlueTeam/Blue"+(k+1)).gameObject;
-                    Debug.Log(newBlueTeam[k]);
                     newRedTeam[k] = newEnv.transform.Find("RedTeam/Red"+(k+1)).gameObject;
                 }
                 envs[i] = new Experience(newBall, newBlueGoal, newRedGoal, newBlueTeam, newRedTeam);
@@ -126,8 +129,9 @@ public class GameManager : MonoBehaviour
         activationList[3] = ActivationType.ReLU;
         activationList[4] = ActivationType.None;
         
-        NDArray[] weights = new NDArray[numLayers];
+        
         for (int i = 0; i < agents.Length; i++) {
+            NDArray[] weights = new NDArray[numLayers];
             for (int j = 0; j < numLayers; j++) {
                 int[]curLayerShape = new int[2];
                 curLayerShape[0] = layerShapes[j, 0];
@@ -135,8 +139,17 @@ public class GameManager : MonoBehaviour
                 weights[j] = NDArray.HeInitializedNDArray(curLayerShape, layerShapes[j, 1]);
             }
             agents[i] = new NeuralNetwork(numLayers, activationList, weights, STATE_SIZE, NUM_ACTIONS, actorLog_Std, ALPHA, BETA1, BETA2, EPSILON);
+            weights = new NDArray[numLayers];
             for (int j = 0; j < numLayers; j++) {
-                weights[j] = NDArray.RandomNDArray(layerShapes[j, 0], layerShapes[j, 1]);
+                int[]curLayerShape = new int[2];
+                if (j == numLayers - 1) {
+                    curLayerShape[0] = 1;
+                } else {
+                    curLayerShape[0] = layerShapes[j, 0];
+                }
+                
+                curLayerShape[1] = layerShapes[j, 1];
+                weights[j] = NDArray.HeInitializedNDArray(curLayerShape, layerShapes[j, 1]);
             }
             critics[i] = new NeuralNetwork(numLayers, activationList, weights, STATE_SIZE, 1, criticLog_Std, ALPHA, BETA1, BETA2, EPSILON);
         }
@@ -180,9 +193,13 @@ public class GameManager : MonoBehaviour
                         }
                     }
                 }
-                for (int i = 0; i < PPO_EPOCHS; i++) {
-                    PPO_Update();
-                }
+                
+                //for (int i = 0; i < PPO_EPOCHS; i++) {
+                PPO_Update();
+                Debug.Log("herte");
+                //}
+                //Need to reset environments;
+                //episode_iteration = 0;
             }
             Physics.Simulate(PHYSICS_STEP_SIZE);
         }
@@ -200,6 +217,8 @@ public class GameManager : MonoBehaviour
         JobHandle jobHandle = batchJob.Schedule(numMiniBatches, 4);
         jobHandle.Complete();
 
+        Debug.Log("mini batch job done");
+
         //PPO
         //Perform forward on each agent for each transition in batch
         NativeArray<double> actionDists = new NativeArray<double>(minibatches.Length*NUM_ACTIONS, Allocator.TempJob);
@@ -216,6 +235,8 @@ public class GameManager : MonoBehaviour
                 stateValInd++;
             }
         }
+
+        Debug.Log("did forward update");
 
         //For Each agent, for each minibatch, perform PPO update step
         for (int i  = 0; i < TEAM_SIZE; i++) {

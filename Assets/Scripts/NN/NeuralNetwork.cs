@@ -88,7 +88,6 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
             activationOutput.Dispose();
 
             if (i+1 == numLayers) {
-                
                 return curOutput;
             }
             inputs[i+1] = curOutput;

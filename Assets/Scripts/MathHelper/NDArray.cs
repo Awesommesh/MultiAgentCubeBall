@@ -43,7 +43,7 @@ public struct NDArray {
     public static NDArray fromNativeArray(NativeArray<double> data, int index, int len) {
         NDArray fromNative = new NDArray(len, 1);
         for (int i = index; i < index+len; i++) {
-            fromNative[i] = data[i];
+            fromNative[i-index] = data[i];
         } 
         return fromNative;
     }
@@ -73,7 +73,7 @@ public struct NDArray {
     public static NDArray HeInitializedNDArray(int[] shape, int prevSize) {
         NDArray he = new NDArray(shape);
         for (int i = 0; i < he.numElements; i++) {
-            he[i] = GaussianDistribution.NextGaussian() * math.sqrt(2/prevSize);
+            he[i] = GaussianDistribution.NextGaussian() * math.sqrt(((double)2)/prevSize);
         }
         return he;
 

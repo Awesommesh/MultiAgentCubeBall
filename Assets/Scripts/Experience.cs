@@ -260,9 +260,6 @@ public class Experience {
             //Forward Step on Blue Agents + Critics
             NDArray actionDists = blueAgents[i].Forward(curBlueState);
             for (int j = 0; j < GameManager.NUM_ACTIONS; j++) {
-                if (j == 2) {
-                    UnityEngine.Debug.Log(actionDists[j]);
-                }
                 blueActions[time_step, i, j] = GaussianDistribution.NextGaussian(actionDists[j], blueAgents[i].log_std[j]);
                 blueLog_Probs[time_step, i, j] = GaussianDistribution.log_prob(blueActions[time_step, i, j], actionDists[j], blueAgents[i].log_std[j]);
             }
@@ -283,15 +280,15 @@ public class Experience {
             rb = bluePlayers[i].GetComponent<Rigidbody>();
             Vector3d force = Vector3d.Normalize(new Vector3d(blueActions[time_step, i, 0], 0, blueActions[time_step, i, 1]));
             force *= GameManager.MAX_SPEED*Sigmoid(blueActions[time_step, i, 2]);
-            UnityEngine.Debug.Log(force);
-            rb.AddForce(new Vector3((float)force[0], (float)force[1], (float)force[2]));
+            //UnityEngine.Debug.Log(force);
+            rb.velocity = new Vector3((float)force[0], (float)force[1], (float)force[2]);
 
             //Red Team Actions
             rb = redPlayers[i].GetComponent<Rigidbody>();
             force = Vector3d.Normalize(new Vector3d(redActions[time_step, i, 0], 0, redActions[time_step, i, 1]));
             force *= GameManager.MAX_SPEED*Sigmoid(redActions[time_step, i, 2]);
-            UnityEngine.Debug.Log(force);
-            rb.AddForce(new Vector3((float)force[0], (float)force[1], (float)force[2]));
+            //UnityEngine.Debug.Log(force);
+            rb.velocity = new Vector3((float)force[0], (float)force[1], (float)force[2]);
         }
 
         time_step++;
@@ -425,6 +422,12 @@ public class Experience {
         for (int i = 0; i  < GameManager.TEAM_SIZE; i++) {
             blueNextVals[i] = (blueCritics[i].Forward(curBlueState))[0];
             redNextVals[i] = (redCritics[i].Forward(curRedState))[0];
+
+            //Stop agents due to end of episode
+            rb = bluePlayers[i].GetComponent<Rigidbody>();
+            rb.velocity = new Vector3(0, 0, 0);
+            rb = redPlayers[i].GetComponent<Rigidbody>();
+            rb.velocity = new Vector3(0, 0, 0);
         }
     }
 
