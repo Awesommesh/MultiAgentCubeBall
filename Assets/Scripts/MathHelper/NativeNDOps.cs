@@ -6,10 +6,10 @@ public struct NativeNDOps : IComponentData {
     public static void Dot(NativeArray<double> a, NativeArray<int> aShape, NativeArray<double> b, NativeArray<int> bShape, NativeArray<double> output) {
         for (int i = 0; i < aShape[0]; i++) {
             for (int j = 0; j < bShape[1]; j++) {
-                int ind = i*aShape[0] + j;
+                int ind = i*bShape[1] + j;
                 output[ind] = 0;
                 for (int k = 0; k < aShape[1]; k++) {
-                    output[ind] += a[i*aShape[0]+k] * b[k*aShape[1] + j];
+                    output[ind] += a[i*aShape[1]+k] * b[k*bShape[1] + j];
                 }
             }
         }
@@ -19,7 +19,7 @@ public struct NativeNDOps : IComponentData {
     public static void Transpose(NativeArray<double> a, NativeArray<int> aShape, NativeArray<double> output) {
         for (int i = 0; i < aShape[0]; i++) {
             for (int j = 0; j < aShape[1]; j++) {
-                output[j*aShape[1]+i] = a[i*aShape[0] + j];
+                output[j*aShape[0]+i] = a[i*aShape[1] + j];
             }
         }
     }
@@ -31,16 +31,16 @@ public struct NativeNDOps : IComponentData {
                         output[i] = ReLU(input[i]);
                     }
                     break;
-                case ActivationType.Sigmoid:
-                    for (int i = 0; i < output.Length; i++) {
-                        output[i] = Sigmoid(input[i]);
-                    }
-                    break;
-                default:
-                    for (int i = 0; i < output.Length; i++) {
-                        output[i] = input[i];
-                    }
-                    break;
+            case ActivationType.Sigmoid:
+                for (int i = 0; i < output.Length; i++) {
+                    output[i] = Sigmoid(input[i]);
+                }
+                break;
+            default:
+                for (int i = 0; i < output.Length; i++) {
+                    output[i] = input[i];
+                }
+                break;
         }
     }
 
@@ -51,16 +51,16 @@ public struct NativeNDOps : IComponentData {
                         output[i] = ReLU_back(input[i])*grad[i];
                     }
                     break;
-                case ActivationType.Sigmoid:
-                    for (int i = 0; i < output.Length; i++) {
-                        output[i] = Sigmoid_back(input[i])*grad[i];
-                    }
-                    break;
-                default:
-                    for (int i = 0; i < output.Length; i++) {
-                        output[i] = grad[i];
-                    }
-                    break;
+            case ActivationType.Sigmoid:
+                for (int i = 0; i < output.Length; i++) {
+                    output[i] = Sigmoid_back(input[i])*grad[i];
+                }
+                break;
+            default:
+                for (int i = 0; i < output.Length; i++) {
+                    output[i] = grad[i];
+                }
+                break;
         }
     }
 
