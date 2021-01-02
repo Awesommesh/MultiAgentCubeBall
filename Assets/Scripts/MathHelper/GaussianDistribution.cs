@@ -58,7 +58,7 @@ public struct GaussianDistribution : IComponentData {
         int startInd, int len, Allocator allocator) {
         NativeArray<double> log_probs = new NativeArray<double> (len, allocator);
         for (int i = startInd; i < startInd+len; i++) {
-            log_probs[i] = log_prob(x[i], mean[i], std[i]);
+            log_probs[i-startInd] = log_prob(x[i], mean[i], std[i-startInd]);
         }
         return log_probs;
     }
@@ -72,7 +72,7 @@ public struct GaussianDistribution : IComponentData {
         int startInd, int len, Allocator allocator) {
         NativeArray<double> log_prob_back = new NativeArray<double> (len, allocator);
         for (int i = startInd; i < startInd+len; i++) {
-            log_prob_back[i] = (x[i]-mean[i])/math.pow(std[i], 2);
+            log_prob_back[i-startInd] = (x[i]-mean[i])/math.pow(std[i-startInd], 2);
         }
         return log_prob_back;
     }

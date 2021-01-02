@@ -62,13 +62,13 @@ public struct PPOUpdateJob : IJob {
                 int surr1Less = surr1 < surr2 ? 1 : 0;
                 int surr2Less = surr2 < surr1 ? 1 : 0;
                 int clamp_back = (ratio > 1+PPO_EPILSON || ratio < 1-PPO_EPILSON) ? 0 : 1;
-                actorGrad[actionIndex + k] = (-1/MINI_BATCH_SIZE*NUM_ACTIONS)*(surr1Less * surr1 + surr2Less * clamp_back * surr1) * log_prob_back[k];
+                actorGrad[(j-minibatch_ind)*NUM_ACTIONS + k] = (-1/MINI_BATCH_SIZE*NUM_ACTIONS)*(surr1Less * surr1 + surr2Less * clamp_back * surr1) * log_prob_back[k];
             }
             
             critic_loss += math.pow(returns[j] - stateVals[j], 2);
 
             //Critic Grad
-            criticGrad[j] = -CRITIC_DISCOUNT * (2 / MINI_BATCH_SIZE) * (returns[j] - stateVals[j]);
+            criticGrad[j-minibatch_ind] = -CRITIC_DISCOUNT * (2 / MINI_BATCH_SIZE) * (returns[j-minibatch_ind] - stateVals[j-minibatch_ind]);
         }
         actor_loss /= MINI_BATCH_SIZE*NUM_ACTIONS;
         actor_loss *= -1;

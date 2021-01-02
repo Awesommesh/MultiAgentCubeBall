@@ -1,8 +1,10 @@
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Collections;
+using Unity.Burst;
 public struct NativeNDOps : IComponentData {
     //No Check for incorrect dimensions!!!
+    [BurstCompile]
     public static void Dot(NativeArray<double> a, NativeArray<int> aShape, NativeArray<double> b, NativeArray<int> bShape, NativeArray<double> output) {
         //output shape = [aShape[0], bShape[1]];
         for (int i = 0; i < aShape[0]; i++) {
@@ -17,6 +19,7 @@ public struct NativeNDOps : IComponentData {
     }
 
     //Only works for 2D matrix
+    [BurstCompile]
     public static void Transpose(NativeArray<double> a, NativeArray<int> aShape, NativeArray<double> output) {
         for (int i = 0; i < aShape[0]; i++) {
             for (int j = 0; j < aShape[1]; j++) {
@@ -25,6 +28,7 @@ public struct NativeNDOps : IComponentData {
         }
     }
 
+    [BurstCompile]
     public static void ActivationFunction(ActivationType type, NativeArray<double> input, NativeArray<double> output) {
         switch(type) {
             case ActivationType.ReLU:
@@ -45,6 +49,7 @@ public struct NativeNDOps : IComponentData {
         }
     }
 
+    [BurstCompile]
     public static void ActivationFunctionBack(ActivationType type, NativeArray<double> input, NativeArray<double> grad, NativeArray<double> output) {
         switch(type) {
             case ActivationType.ReLU:
@@ -65,6 +70,7 @@ public struct NativeNDOps : IComponentData {
         }
     }
 
+    [BurstCompile]
     public static double ReLU(double x) {
         if (x > 0) {
             return x;
@@ -72,10 +78,12 @@ public struct NativeNDOps : IComponentData {
         return 0;
     }
 
+    [BurstCompile]
     public static double Sigmoid(double x) {
         return 1 / (math.exp(-x) + 1);
     }
 
+    [BurstCompile]
     public static double ReLU_back(double x) {
         if (x > 0) {
             return 1;
@@ -83,10 +91,12 @@ public struct NativeNDOps : IComponentData {
         return 0;
     }
 
+    [BurstCompile]
     public static double Sigmoid_back(double x) {
         return Sigmoid(x) * (1 - Sigmoid(x));
     }
 
+    [BurstCompile]
     public static void Copy(NativeArray<double> input, NativeArray<double> output) {
         for (int i = 0; i < input.Length; i++) {
             output[i] = input[i];

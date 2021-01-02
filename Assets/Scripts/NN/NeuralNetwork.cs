@@ -112,6 +112,7 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
                 weightsShape = nativeWeightsShape,
                 layerInput = nativeLayerInput,
                 activationInput = nativeActivationInput,
+                grad = nativeGrad,
                 activation = activations[i],
                 weightsGrad = nativeWeightsGradient,
                 layerGrad = nativeLayerGradient

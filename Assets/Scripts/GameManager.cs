@@ -16,7 +16,7 @@ public class GameManager : MonoBehaviour
     public static double BETA2 = 0.999;
     public static double EPSILON = 0.00000001;
     public static int EPISODE_LENGTH = 64;
-    public static int BATCH_SIZE;
+    public int BATCH_SIZE;
     public int MINI_BATCH_SIZE = 16;
     public int PPO_EPOCHS = 10;
     public static int TEAM_SIZE = 5;
@@ -47,7 +47,6 @@ public class GameManager : MonoBehaviour
     private NativeArray<double> returns;
     private NativeArray<double> advantages;
 
-    private NativeArray<int> shuffle;
     private NativeArray<int> minibatches;
 
     public Experience[] envs;
@@ -110,10 +109,7 @@ public class GameManager : MonoBehaviour
 
         BATCH_SIZE = EPISODE_LENGTH * NUM_ENV * TEAM_SIZE * 2;
         minibatches = new NativeArray<int>(BATCH_SIZE, Allocator.Persistent);
-        shuffle = new NativeArray<int>(BATCH_SIZE, Allocator.Persistent);
-        for (int i = 0; i < shuffle.Length; i++) {
-            shuffle[i] = i;
-        }
+        
         states = new NativeArray<double>(BATCH_SIZE*STATE_SIZE, Allocator.Persistent);
         actions = new NativeArray<double>(BATCH_SIZE*NUM_ACTIONS, Allocator.Persistent);
         log_probs = new NativeArray<double>(BATCH_SIZE*NUM_ACTIONS, Allocator.Persistent);
@@ -199,7 +195,7 @@ public class GameManager : MonoBehaviour
                 Debug.Log("herte");
                 //}
                 //Need to reset environments;
-                //episode_iteration = 0;
+                episode_iteration++;
             }
             Physics.Simulate(PHYSICS_STEP_SIZE);
         }
@@ -208,11 +204,12 @@ public class GameManager : MonoBehaviour
 
     void PPO_Update() {
         int numMiniBatches = BATCH_SIZE / MINI_BATCH_SIZE;
+        Debug.Log(numMiniBatches);
         GenerateMiniBatchesJob batchJob = new GenerateMiniBatchesJob {
             seed = MINI_BATCH_SEED,
             MINI_BATCH_SIZE = MINI_BATCH_SIZE,
             minibatches = minibatches,
-            shuffle = shuffle
+            BATCH_SIZE = BATCH_SIZE
         };
         JobHandle jobHandle = batchJob.Schedule(numMiniBatches, 4);
         jobHandle.Complete();
@@ -237,12 +234,15 @@ public class GameManager : MonoBehaviour
         }
 
         Debug.Log("did forward update");
-
+        
         //For Each agent, for each minibatch, perform PPO update step
+        NativeArray<double>[]nativeActorGrads = new NativeArray<double>[TEAM_SIZE*numMiniBatches];
+        NativeArray<double>[]nativeCriticGrads = new NativeArray<double>[TEAM_SIZE*numMiniBatches];
+        NativeArray<JobHandle> ppoJobs = new NativeArray<JobHandle>(TEAM_SIZE*numMiniBatches, Allocator.Persistent);
         for (int i  = 0; i < TEAM_SIZE; i++) {
             for (int j = 0; j < numMiniBatches; j++) {
-                NativeArray<double> nativeActorGrads = new NativeArray<double>(MINI_BATCH_SIZE * NUM_ACTIONS, Allocator.Persistent);
-                NativeArray<double> nativeCriticGrads = new NativeArray<double>(MINI_BATCH_SIZE, Allocator.Persistent);
+                nativeActorGrads[i*numMiniBatches+j] = new NativeArray<double>(MINI_BATCH_SIZE * NUM_ACTIONS, Allocator.Persistent);
+                nativeCriticGrads[i*numMiniBatches+j] = new NativeArray<double>(MINI_BATCH_SIZE, Allocator.Persistent);
                 PPOUpdateJob ppoJob = new PPOUpdateJob {
                     minibatches = minibatches,
                     batchInd = j,
@@ -259,25 +259,30 @@ public class GameManager : MonoBehaviour
                     CRITIC_DISCOUNT = CRITIC_DISCOUNT,
                     ENTROPY_BETA = ENTROPY_BETA,
                     MINI_BATCH_SIZE = MINI_BATCH_SIZE,
-                    actorGrad = nativeActorGrads,
-                    criticGrad = nativeCriticGrads
+                    actorGrad = nativeActorGrads[i*numMiniBatches+j],
+                    criticGrad = nativeCriticGrads[i*numMiniBatches+j]
                 };
-                JobHandle ppoJobHandle = ppoJob.Schedule();
-                ppoJobHandle.Complete();
+                ppoJobs[i*numMiniBatches+j] = ppoJob.Schedule();
+            }
+        }
+        JobHandle.CompleteAll(ppoJobs);
+        ppoJobs.Dispose();
+        actionDists.Dispose();
+        stateVals.Dispose();
 
-                actionDists.Dispose();
-                stateVals.Dispose();
-
+        Debug.Log("Did ppo updates");
+        
+        for (int i  = 0; i < TEAM_SIZE; i++) {
+            for (int j = 0; j < numMiniBatches; j++) {
                 for (int k = 0; k < MINI_BATCH_SIZE; k++) {
-                    NDArray actorGrads = NDArray.fromNativeArray(nativeActorGrads, k * NUM_ACTIONS, NUM_ACTIONS);
+                    NDArray actorGrads = NDArray.fromNativeArray(nativeActorGrads[i*numMiniBatches+j], k * NUM_ACTIONS, NUM_ACTIONS);
                     agents[i].Backward(actorGrads);
-                    NDArray criticGrads = NDArray.fromNativeArray(nativeCriticGrads, k, 1);
+                    NDArray criticGrads = NDArray.fromNativeArray(nativeCriticGrads[i*numMiniBatches+j], k, 1);
                     critics[i].Backward(criticGrads);
                 }
-                nativeActorGrads.Dispose();
-                nativeCriticGrads.Dispose();
+                nativeActorGrads[i*numMiniBatches+j].Dispose();
+                nativeCriticGrads[i*numMiniBatches+j].Dispose();
             }
-            
         }
     }
 
@@ -287,7 +292,6 @@ public class GameManager : MonoBehaviour
         log_probs.Dispose();
         returns.Dispose();
         advantages.Dispose();
-        shuffle.Dispose();
         minibatches.Dispose();
         for (int i = 0; i < NUM_ENV; i++) {
             envs[i].Dispose();

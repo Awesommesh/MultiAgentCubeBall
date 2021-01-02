@@ -18,9 +18,7 @@ public struct NNStepBackwardJob : IJob {
     [ReadOnly]
     public ActivationType activation;
 
-    [WriteOnly]
     public NativeArray<double> weightsGrad;
-    [WriteOnly]
     public NativeArray<double> layerGrad;
 
     public void Execute() {
