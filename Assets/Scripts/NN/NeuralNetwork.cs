@@ -1,161 +1,285 @@
 using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Jobs;
+using System.Collections.Generic;
 public struct NeuralNetwork { //Change to call small jobs to do all calcs
-    NDArray[] weights;
+    
     //Adam Optimization Parameters
-    private NDArray[] V_dw;
-    private NDArray[] S_dw;
+    private NativeArray<double>[] V_dw;
+    private NativeArray<double>[] S_dw;
     private double alpha;
     private double beta1;
     private double beta2;
     private double epsilon;
     private int iteration;
+    private int adamJobBatchSize;
+
+    //Backward Gradients
+    NativeArray<double>[] weightsGrads;
+    NativeArray<double>[] layerGrads;
+
+    //NN Parameters
     int numLayers;
-    ActivationType[] activations;
     int numInputs;
     int numOutputs;
-    public NativeArray<double> log_std;
-    public double log_std_mean;
-    NDArray[] inputs;
-    NDArray[] activationInputs;
+    int maxForwardCalls;
 
-    public NeuralNetwork(int numLayers, ActivationType[] activations, NDArray[] weights, int numInputs, int numOutputs, double[] log_stdVals,
-        double alpha, double beta1, double beta2, double epsilon) {
+    ActivationType[] activations;
+    public NativeArray<double> log_std;
+    public double entropy;
+    NativeArray<double>[,] inputs;
+    NativeArray<double>[,] activationInputs;
+    NativeArray<double>[] weights;
+    NativeArray<int>[] weightsShape;
+
+    public NeuralNetwork(int numLayers, ActivationType[] activations, ref NativeArray<double>[] weights, ref NativeArray<int>[] weightsShape, int numInputs, int numOutputs, 
+        double[] log_stdVals, double alpha, double beta1, double beta2, double epsilon, int adamJobBatchSize, int maxForwardCalls) {
         this.numLayers = numLayers;
+        this.maxForwardCalls = maxForwardCalls;
         this.activations = activations;
         this.weights = weights;
-        this.V_dw = new NDArray[weights.Length];
-        this.S_dw = new NDArray[weights.Length];
-        for (int i = 0; i < weights.Length; i++) {
-            V_dw[i] = NDArray.NDArrayZeros(weights[i].shape);
-            S_dw[i] = NDArray.NDArrayZeros(weights[i].shape);
+        this.weightsShape = weightsShape;
+        weightsGrads = new NativeArray<double>[numLayers];
+        layerGrads = new NativeArray<double>[numLayers];
+        this.adamJobBatchSize = adamJobBatchSize;
+        this.V_dw = new NativeArray<double>[numLayers];
+        this.S_dw = new NativeArray<double>[numLayers];
+        inputs = new NativeArray<double>[maxForwardCalls, numLayers];
+        activationInputs = new NativeArray<double>[maxForwardCalls, numLayers];
+        for (int i = 0; i < maxForwardCalls; i++) {
+            for (int j = 0; j < numLayers; j++) {
+                inputs[i, j] = new NativeArray<double>(weightsShape[j][1], Allocator.Persistent);
+                activationInputs[i, j] = new NativeArray<double>(weightsShape[j][0], Allocator.Persistent);
+            }
+            inputs[i, 0].Dispose();
         }
+        
+        for (int i = 0; i < numLayers; i++) {
+            V_dw[i] = new NativeArray<double>(weights[i].Length, Allocator.Persistent);
+            S_dw[i] = new NativeArray<double>(weights[i].Length, Allocator.Persistent);
+            for (int j = 0; j < weights[i].Length; j++) {
+                V_dw[i][j] = 0;
+                S_dw[i][j] = 0;
+            }
+        }
+        iteration = 0;
         this.numInputs = numInputs;
         this.numOutputs = numOutputs;
         this.alpha = alpha;
         this.beta1 = beta1;
         this.beta2 = beta2;
         this.epsilon = epsilon;
-        inputs = new NDArray[numLayers];
-        activationInputs = new NDArray[numLayers];
+        
         log_std = new NativeArray<double>(log_stdVals.Length, Allocator.Persistent);
-        log_std_mean = 0;
+        double log_std_mean = 0;
         for (int i = 0; i < log_stdVals.Length; i++) {
             log_std[i] = log_stdVals[i];
             log_std_mean += log_stdVals[i];
         }
         log_std_mean /= log_stdVals.Length;
-        iteration = 0;
+        entropy = GaussianDistribution.entropy(log_std_mean);
     }
 
     public void resetOptimizerWeights() {
-        for (int i = 0; i < weights.Length; i++) {
-            V_dw[i] = NDArray.NDArrayZeros(weights[i].shape);
-            S_dw[i] = NDArray.NDArrayZeros(weights[i].shape);
+        for (int i = 0; i < numLayers; i++) {
+            for (int j = 0; j < weights[i].Length; j++) {
+                V_dw[i][j] = 0;
+                S_dw[i][j] = 0;
+            }
         }
+        iteration = 0;
     }
 
-    public NDArray Forward(NDArray input) {
-        inputs[0] = input;
+    public JobHandle Forward(NativeArray<double> input, ref NativeArray<double> output, int id) {
+        inputs[id, 0] = input;
+        JobHandle prevLayerHandle = new JobHandle();
         for (int i = 0; i < numLayers; i++) {
             //Step Forward Job
-            NativeArray<double> nativeWeights = weights[i].getNativeArray(Allocator.TempJob);
-            NativeArray<int> nativeWeightsShape = weights[i].getNativeShape(Allocator.TempJob);
-            NativeArray<double> nativeInputs = inputs[i].getNativeArray(Allocator.TempJob);
-            NativeArray<double> layerOutput = new NativeArray<double>(weights[i].shape[0], Allocator.TempJob);
-            NativeArray<double> activationOutput = new NativeArray<double>(weights[i].shape[0], Allocator.TempJob);
+            NativeArray<double> activationOutput;
+            if (i+1 == numLayers) {
+                activationOutput = output;
+            } else {
+                activationOutput = inputs[id, i+1];
+            }            
             NNStepForwardJob stepForwardJob = new NNStepForwardJob {
-                weights = nativeWeights,
-                weightsShape = nativeWeightsShape,
-                input = nativeInputs,
+                weights = weights[i],
+                weightsShape = weightsShape[i],
+                input = inputs[id, i],
                 activation = activations[i],
-                layerOutput = layerOutput,
+                layerOutput = activationInputs[id, i],
                 activationOutput = activationOutput
             };
-            JobHandle jobHandle = stepForwardJob.Schedule();
-            jobHandle.Complete();
-            
-            //Save outputs of layer and activation function
-            activationInputs[i] = NDArray.fromNativeArray(layerOutput);
-            NDArray curOutput = NDArray.fromNativeArray(activationOutput);
 
-            //Dispose all native arrays
-            nativeWeights.Dispose();
-            nativeWeightsShape.Dispose();
-            nativeInputs.Dispose();
-            layerOutput.Dispose();
-            activationOutput.Dispose();
-
-            if (i+1 == numLayers) {
-                return curOutput;
+            JobHandle curLayerHandle;
+            if (i == 0) {
+                curLayerHandle = stepForwardJob.Schedule();
+            } else {
+                curLayerHandle = stepForwardJob.Schedule(prevLayerHandle);
             }
-            inputs[i+1] = curOutput;
+            if (i+1 == numLayers) {
+                return curLayerHandle;
+            }
+            prevLayerHandle = curLayerHandle;
         }
         UnityEngine.Debug.Log("HUGE ERROR IN FORWARD FUNCTION. RETURNING INPUT AS OUTPUT!!!");
-        return input;
+        return new JobHandle();
     }
 
-    public void Backward(NDArray grad) {
-        NDArray gradient = grad;
+    public JobHandle Forward(NativeArray<double> input, ref NativeArray<double> output, int id, ref JobHandle dependency) {
+        inputs[id, 0] = input;
+        JobHandle prevLayerHandle = new JobHandle();
+        for (int i = 0; i < numLayers; i++) {
+            //Step Forward Job
+            NativeArray<double> activationOutput;
+            if (i+1 == numLayers) {
+                activationOutput = output;
+            } else {
+                activationOutput = inputs[id, i+1];
+            }
+            NNStepForwardJob stepForwardJob = new NNStepForwardJob {
+                weights = weights[i],
+                weightsShape = weightsShape[i],
+                input = inputs[id, i],
+                activation = activations[i],
+                layerOutput = activationInputs[id, i],
+                activationOutput = activationOutput
+            };
+
+            JobHandle curLayerHandle;
+            if (i == 0) {
+                curLayerHandle = stepForwardJob.Schedule(dependency);
+            } else {
+                curLayerHandle = stepForwardJob.Schedule(prevLayerHandle);
+            }
+            if (i+1 == numLayers) {
+                return curLayerHandle;
+            }
+            prevLayerHandle = curLayerHandle;
+        }
+        UnityEngine.Debug.Log("HUGE ERROR IN FORWARD FUNCTION. RETURNING INPUT AS OUTPUT!!!");
+        return new JobHandle();
+    }
+
+    public JobHandle Backward(NativeArray<double> grad, int id) {
+        JobHandle prevLayerHandle = new JobHandle();
+        JobHandle curAdamHandle = new JobHandle();
+        NativeArray<double> gradient;
         for (int i = numLayers - 1; i >= 0; i--) {  
             //Step Backward Job
-            NativeArray<double> nativeWeights = weights[i].getNativeArray(Allocator.TempJob);
-            NativeArray<int> nativeWeightsShape = weights[i].getNativeShape(Allocator.TempJob);
-            NativeArray<double> nativeLayerInput = inputs[i].getNativeArray(Allocator.TempJob);
-            NativeArray<double> nativeActivationInput = activationInputs[i].getNativeArray(Allocator.TempJob);
-            NativeArray<double> nativeGrad = gradient.getNativeArray(Allocator.TempJob);
-            NativeArray<double> nativeWeightsGradient = new NativeArray<double>(weights[i].numElements, Allocator.TempJob);
-            NativeArray<double> nativeLayerGradient = new NativeArray<double>(weights[i].shape[1], Allocator.TempJob);
+            if (i == numLayers - 1) {
+                gradient = grad;
+            } else {
+                gradient = layerGrads[i+1];
+            }
+            weightsGrads[i] = new NativeArray<double>(weights[i].Length, Allocator.TempJob);
+            layerGrads[i] = new NativeArray<double>(weightsShape[i][1], Allocator.TempJob);
             NNStepBackwardJob stepBackwardJob = new NNStepBackwardJob {
-                weights = nativeWeights,
-                weightsShape = nativeWeightsShape,
-                layerInput = nativeLayerInput,
-                activationInput = nativeActivationInput,
-                grad = nativeGrad,
+                weights = weights[i],
+                weightsShape = weightsShape[i],
+                layerInput = inputs[id, i],
+                activationInput = activationInputs[id, i],
+                grad = gradient,
                 activation = activations[i],
-                weightsGrad = nativeWeightsGradient,
-                layerGrad = nativeLayerGradient
+                weightsGrad = weightsGrads[i],
+                layerGrad = layerGrads[i]
             };
-            JobHandle jobHandle = stepBackwardJob.Schedule();
-            jobHandle.Complete();
 
-            gradient = NDArray.fromNativeArray(nativeLayerGradient);
-
-            //Dispose redundant native arrays
-            nativeWeightsShape.Dispose();
-            nativeLayerInput.Dispose();
-            nativeActivationInput.Dispose();
-            nativeGrad.Dispose();
-            nativeLayerGradient.Dispose();
+            JobHandle curLayerHandle;
+            if (i == numLayers - 1) {
+                curLayerHandle = stepBackwardJob.Schedule();
+            } else {
+                curLayerHandle = stepBackwardJob.Schedule(prevLayerHandle);
+            }
             
             //Adam Optimization Job
-            NativeArray<double> nativeV_dw = V_dw[i].getNativeArray(Allocator.TempJob);
-            NativeArray<double> nativeS_dw = S_dw[i].getNativeArray(Allocator.TempJob);
             AdamOptimizerStepJob adamJob = new AdamOptimizerStepJob {
-                weightsGrad = nativeWeightsGradient,
+                weightsGrad = weightsGrads[i],
                 alpha = alpha,
                 beta1 = beta1,
                 beta2 = beta2,
                 epsilon = epsilon,
                 iteration = iteration,
-                V_dw = nativeV_dw,
-                S_dw = nativeS_dw,
-                weights = nativeWeights
+                V_dw = V_dw[i],
+                S_dw = S_dw[i],
+                weights = weights[i]
             };
-            jobHandle = adamJob.Schedule(weights.Length, 32);
-            jobHandle.Complete();
 
-            V_dw[i] = NDArray.fromNativeArray(nativeV_dw);
-            S_dw[i] = NDArray.fromNativeArray(nativeS_dw);
-            weights[i] = NDArray.fromNativeArray(nativeWeights);
-            
-            //Dispose all remaining native arrays
-            nativeWeights.Dispose();
-            nativeWeightsGradient.Dispose();
-            nativeV_dw.Dispose();
-            nativeS_dw.Dispose();
+            curAdamHandle = adamJob.Schedule(weights.Length, adamJobBatchSize, curLayerHandle);
+            prevLayerHandle = curAdamHandle;
         }
         iteration++;
+        return curAdamHandle;
+    }
+
+    public JobHandle Backward(NativeArray<double> grad, int id, ref JobHandle dependency) {
+        JobHandle prevLayerHandle = new JobHandle();
+        JobHandle curAdamHandle = new JobHandle();
+        NativeArray<double> gradient;
+        for (int i = numLayers - 1; i >= 0; i--) {  
+            //Step Backward Job
+            if (i == numLayers - 1) {
+                gradient = grad;
+            } else {
+                gradient = layerGrads[i+1];
+            }
+            weightsGrads[i] = new NativeArray<double>(weights[i].Length, Allocator.TempJob);
+            layerGrads[i] = new NativeArray<double>(weightsShape[i][1], Allocator.TempJob);
+            NNStepBackwardJob stepBackwardJob = new NNStepBackwardJob {
+                weights = weights[i],
+                weightsShape = weightsShape[i],
+                layerInput = inputs[id, i],
+                activationInput = activationInputs[id, i],
+                grad = gradient,
+                activation = activations[i],
+                weightsGrad = weightsGrads[i],
+                layerGrad = layerGrads[i]
+            };
+
+            JobHandle curLayerHandle;
+            if (i == numLayers - 1) {
+                curLayerHandle = stepBackwardJob.Schedule(dependency);
+            } else {
+                curLayerHandle = stepBackwardJob.Schedule(prevLayerHandle);
+            }
+            
+            //Adam Optimization Job
+            AdamOptimizerStepJob adamJob = new AdamOptimizerStepJob {
+                weightsGrad = weightsGrads[i],
+                alpha = alpha,
+                beta1 = beta1,
+                beta2 = beta2,
+                epsilon = epsilon,
+                iteration = iteration,
+                V_dw = V_dw[i],
+                S_dw = S_dw[i],
+                weights = weights[i]
+            };
+
+            curAdamHandle = adamJob.Schedule(weights.Length, adamJobBatchSize, curLayerHandle);
+            prevLayerHandle = curAdamHandle;
+        }
+        iteration++;
+        return curAdamHandle;
+    }
+
+    public void Dispose() {
+        for (int i = 0; i < numLayers; i++) {
+            weightsShape[i].Dispose();
+            weights[i].Dispose();
+            for (int j = 0; j < maxForwardCalls; j++) {
+                inputs[j, i].Dispose();
+                activationInputs[j, i].Dispose();
+            }
+            V_dw[i].Dispose();
+            S_dw[i].Dispose();
+        }
+        log_std.Dispose();
+    }
+
+    public void resetGrads() {
+        for (int i = 0; i < numLayers; i++) {
+            weightsGrads[i].Dispose();
+            layerGrads[i].Dispose();
+        }
     }
 }

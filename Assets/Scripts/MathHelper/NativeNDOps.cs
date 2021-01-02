@@ -3,6 +3,19 @@ using Unity.Mathematics;
 using Unity.Collections;
 using Unity.Burst;
 public struct NativeNDOps : IComponentData {
+    [BurstCompile]
+    public static NativeArray<double> HeInitializedNDArray(NativeArray<int> shape, int prevSize, Allocator allocator) {
+        int numElements = 1;
+        for (int i = 0; i < shape.Length; i++) {
+            numElements *= shape[i];
+        }
+        NativeArray<double> he = new NativeArray<double>(numElements, allocator);
+        for (int i = 0; i < numElements; i++) {
+            he[i] = GaussianDistribution.NextGaussian() * math.sqrt(((double)2)/prevSize);
+        }
+        return he;
+    }
+
     //No Check for incorrect dimensions!!!
     [BurstCompile]
     public static void Dot(NativeArray<double> a, NativeArray<int> aShape, NativeArray<double> b, NativeArray<int> bShape, NativeArray<double> output) {

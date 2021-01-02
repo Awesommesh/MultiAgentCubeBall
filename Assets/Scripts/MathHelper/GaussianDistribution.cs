@@ -68,6 +68,14 @@ public struct GaussianDistribution : IComponentData {
         return (x-mean)/NDArray.Pow(std, 2);
     }
 
+    public static NativeArray<double> log_prob_back(NativeArray<double> x, NativeArray<double> mean, NativeArray<double> std, Allocator allocator) {
+        NativeArray<double> log_prob_back = new NativeArray<double> (x.Length, allocator);
+        for (int i = 0; i < x.Length; i++) {
+            log_prob_back[i] = (x[i]-mean[i])/math.pow(std[i], 2);
+        }
+        return log_prob_back;
+    }
+
     public static NativeArray<double> log_prob_back(NativeArray<double> x, NativeArray<double> mean, NativeArray<double> std, 
         int startInd, int len, Allocator allocator) {
         NativeArray<double> log_prob_back = new NativeArray<double> (len, allocator);

@@ -76,7 +76,6 @@ public struct NDArray {
             he[i] = GaussianDistribution.NextGaussian() * math.sqrt(((double)2)/prevSize);
         }
         return he;
-
     }
 
     public NDArray (params int[] shape) {
