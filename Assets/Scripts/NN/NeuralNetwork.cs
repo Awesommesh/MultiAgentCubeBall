@@ -29,7 +29,7 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
     public double entropy;
     NativeArray<double>[,] inputs;
     NativeArray<double>[,] activationInputs;
-    NativeArray<double>[] weights;
+    public NativeArray<double>[] weights;
     NativeArray<int>[] weightsShape;
 
     public NeuralNetwork(int numLayers, ActivationType[] activations, ref NativeArray<double>[] weights, ref NativeArray<int>[] weightsShape, int numInputs, int numOutputs, 

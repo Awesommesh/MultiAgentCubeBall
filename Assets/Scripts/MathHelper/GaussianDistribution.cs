@@ -9,14 +9,6 @@ public struct GaussianDistribution : IComponentData {
     public static Unity.Mathematics.Random sampler = new Unity.Mathematics.Random(GameManager.SEED);
     //Mean = 0, STD = 1;
     public static double NextGaussian() {
-        /*double v1, v2, s;
-        do {
-            v1 = 2 * sampler.NextDouble() - 1;
-            v2 = 2 * sampler.NextDouble() - 1;
-            s = v1 * v2 + v2 * v2;
-        } while (s >= 1 || s == 0);
-        s = math.sqrt(-2*math.log(s)/s);
-        return v1 * s;*/
         double u1 = 1 - sampler.NextDouble();
         double u2 = 1 - sampler.NextDouble();
         return math.sqrt(-2 * math.log(u1)) * math.sin(2 * math.PI * u2);
@@ -36,7 +28,7 @@ public struct GaussianDistribution : IComponentData {
 
     public static double log_prob(double x, double mean, double std) {
         double var = math.pow(std, 2);
-        return -(math.pow(x-mean, 2)/(2*var) - math.log(std) - math.log(math.sqrt(2*math.PI)));
+        return -(math.pow(x-mean, 2)/(2*var)) - math.log(std) - math.log(math.sqrt(2*math.PI));
     }
 
     public static NDArray log_prob(NDArray x, NDArray mean, NDArray std) {
@@ -65,7 +57,7 @@ public struct GaussianDistribution : IComponentData {
 
     //Backwards of log_prob = grad * ((x_t-u(s_t))/std^2)
     public static NDArray log_prob_back(NDArray x, NDArray mean, NDArray std) {
-        return (x-mean)/NDArray.Pow(std, 2);
+        return ((x-mean)/NDArray.Pow(std, 2));
     }
 
     public static NativeArray<double> log_prob_back(NativeArray<double> x, NativeArray<double> mean, NativeArray<double> std, Allocator allocator) {

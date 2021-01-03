@@ -38,8 +38,15 @@ public struct PPOUpdateJob : IJob {
     [WriteOnly]
     public double criticGrad;
 
+    [ReadOnly]
     public double actor_loss;
+    [ReadOnly]
     public double critic_loss;
+
+    [WriteOnly]
+    public double nextActor_loss;
+    [WriteOnly]
+    public double nextCritic_loss;
 
     public void Execute() {
         NativeArray<double> new_log_probs = GaussianDistribution.log_prob(actions, actionDists, log_stds, Allocator.Temp);
@@ -48,7 +55,7 @@ public struct PPOUpdateJob : IJob {
             double ratio = math.exp(new_log_probs[i] - old_log_probs[i]);
             double surr1 = ratio * advantage;
             double surr2 = math.clamp(ratio, 1-PPO_EPILSON, 1+PPO_EPILSON) * advantage;
-            actor_loss += math.min(surr1, surr2);
+            nextActor_loss = actor_loss + math.min(surr1, surr2);
 
             //Actor Grad
             int surr1Less = surr1 < surr2 ? 1 : 0;
@@ -57,9 +64,10 @@ public struct PPOUpdateJob : IJob {
             actorGrad[i] = (-1/MINI_BATCH_SIZE*NUM_ACTIONS)*(surr1Less * surr1 + surr2Less * clamp_back * surr1) * log_prob_back[i];
         }
 
-        critic_loss += math.pow(returns - stateVal, 2);
+        nextCritic_loss = critic_loss + math.pow(returns - stateVal, 2);
 
         //Critic Grad
         criticGrad = -CRITIC_DISCOUNT * (2 / MINI_BATCH_SIZE) * (returns - stateVal);
+        nextCritic_loss = 2;
     }
 }

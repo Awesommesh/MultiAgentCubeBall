@@ -15,7 +15,7 @@ public class GameManager : MonoBehaviour
     public static double BETA1 = 0.9;
     public static double BETA2 = 0.999;
     public static double EPSILON = 0.00000001;
-    public static int EPISODE_LENGTH = 64;
+    public static int EPISODE_LENGTH = 32;
     public int BATCH_SIZE;
     public int MINI_BATCH_SIZE = 16;
     public int ADAM_BATCH_SIZE = 32;
@@ -82,10 +82,10 @@ public class GameManager : MonoBehaviour
 
         actorLog_Std = new double[NUM_ACTIONS];
         for (int i = 0; i < NUM_ACTIONS; i++) {
-            actorLog_Std[i] = 0;
+            actorLog_Std[i] = 1;
         }
         criticLog_Std = new double[1];
-        criticLog_Std[0] = 0;
+        criticLog_Std[0] = 1;
         agents = new NeuralNetwork[TEAM_SIZE];
         critics = new NeuralNetwork[TEAM_SIZE];
         float sqrt = math.sqrt(NUM_ENV);
@@ -103,9 +103,9 @@ public class GameManager : MonoBehaviour
                 }
                 GameObject newEnv = Instantiate(gameEnv);
                 newEnv.transform.Translate(new Vector3(i*X_Env_Increment, 0.5f, j*Z_Env_Increment), Space.World);
-                GameObject newBall = newEnv.transform.Find("Ball").gameObject;
-                GameObject newBlueGoal = newEnv.transform.Find("GoalAreaBlue").gameObject;
-                GameObject newRedGoal = newEnv.transform.Find("GoalAreaRed").gameObject;
+                GameObject newBall = newEnv.transform.Find("Soccer Ball").gameObject;
+                GameObject newBlueGoal = newEnv.transform.Find("Field/GoalAreaBlue").gameObject;
+                GameObject newRedGoal = newEnv.transform.Find("Field/GoalAreaRed").gameObject;
                 GameObject[] newBlueTeam = new GameObject[TEAM_SIZE];
                 GameObject[] newRedTeam = new GameObject[TEAM_SIZE];
                 Vector3 ballOriginalPos = newBall.transform.position;
@@ -214,7 +214,6 @@ public class GameManager : MonoBehaviour
                 for (int i = 0; i < PPO_EPOCHS; i++) {
                     PPO_Update();
                     counter++;
-                    Debug.Log("1 PPO Update");
                 }
                 actor_loss /= (BATCH_SIZE*NUM_ACTIONS*counter);
                 actor_loss *= -1;
@@ -272,6 +271,8 @@ public class GameManager : MonoBehaviour
                     int index = minibatches[j*MINI_BATCH_SIZE+k];
                     NativeArray<double> actorGrads = new NativeArray<double>(NUM_ACTIONS, Allocator.Persistent);
                     NativeArray<double> criticGrads = new NativeArray<double>(1, Allocator.Persistent);
+                    double nextActor_loss = 0;
+                    double nextCritic_loss = 0;
                     PPOUpdateJob ppoJob = new PPOUpdateJob {
                         actionDists = actionDists[index],
                         stateVal = stateVals[index][0],
@@ -289,7 +290,9 @@ public class GameManager : MonoBehaviour
                         actorGrad = actorGrads,
                         criticGrad = criticGrads[0],
                         actor_loss = actor_loss,
-                        critic_loss = critic_loss
+                        critic_loss = critic_loss,
+                        nextActor_loss = nextActor_loss,
+                        nextCritic_loss = nextCritic_loss
                     };
                     total_entropy += agents[i].entropy;
                     JobHandle ppoHandle = ppoJob.Schedule();
@@ -298,6 +301,31 @@ public class GameManager : MonoBehaviour
                     backwardAndPPOJobHandles.Add(critics[i].Backward(criticGrads, index, ref ppoHandle));
                     JobHandle.CompleteAll(backwardAndPPOJobHandles);
                     backwardAndPPOJobHandles.Dispose();
+                    Debug.Log(nextActor_loss + " :next losses: " + ppoJob.nextCritic_loss);
+                    Debug.Log("Expected Critic Loss: " + math.pow(returns[index] - advantages[index], 2));
+                    actor_loss = nextActor_loss;
+                    critic_loss = nextCritic_loss;
+                    if (j == 0 && k == 0) {
+                        NativeArray<double> new_log_probs = GaussianDistribution.log_prob(actions[index], actionDists[index], agents[i].log_std, Allocator.Persistent);
+                        NativeArray<double> log_prob_back = GaussianDistribution.log_prob_back(actions[index], actionDists[index], agents[i].log_std, Allocator.Persistent);
+                        Debug.Log("Critic GRAD: " + criticGrads[0]);
+                        for (int l = 0; l < NUM_ACTIONS; l++) {
+                            Debug.Log("Actor GRAD: " + l + " : " + actorGrads[l]);
+                            //Debug.Log(new_log_probs[l] + " : " + log_prob_back[l]);
+                            double ratio = math.exp(new_log_probs[l] - log_probs[index][l]);
+                            double surr1 = ratio * advantages[index];
+                            double surr2 = math.clamp(ratio, 1-PPO_EPILSON, 1+PPO_EPILSON) * advantages[index];
+                            Debug.Log(surr1 + " :surr: " + surr2);
+                            int surr1Less = surr1 <= surr2 ? 1 : 0;
+                            int surr2Less = surr2 < surr1 ? 1 : 0;
+                            int clamp_back = (ratio > 1+PPO_EPILSON || ratio < 1-PPO_EPILSON) ? 0 : 1;
+                            double expectedAG = (-1/MINI_BATCH_SIZE*NUM_ACTIONS)*(surr1Less + surr2Less * clamp_back) * log_prob_back[l];
+                            Debug.Log("Expected Actor Grad: " + expectedAG + " log prob back: " + log_prob_back[l]);
+                            //actor_loss += math.min(surr1, surr2);
+                        } 
+                        new_log_probs.Dispose();
+                        log_prob_back.Dispose();
+                    }
                     actorGrads.Dispose();
                     criticGrads.Dispose();
                     agents[i].resetGrads();

@@ -567,6 +567,16 @@ public class Experience {
         blueAdvantages.Dispose();
         redReturns.Dispose();
         redAdvantages.Dispose();
+        for (int i = 0; i < GameManager.EPISODE_LENGTH; i++) {
+            blueStates[i].Dispose();
+            redStates[i].Dispose();
+            for (int j = 0; j < GameManager.TEAM_SIZE; j++) {
+                blueActions[i, j].Dispose();
+                blueLog_Probs[i, j].Dispose();
+                redActions[i, j].Dispose();
+                redLog_Probs[i, j].Dispose();
+            }
+        }
     }
 
     [BurstCompile]
@@ -583,15 +593,6 @@ public class Experience {
             bluePlayers[i].transform.position = blueOriginalPos[i];
             redPlayers[i].transform.position = redOriginalPos[i];
         }
-        for (int i = 0; i < GameManager.EPISODE_LENGTH; i++) {
-            blueStates[i].Dispose();
-            redStates[i].Dispose();
-            for (int j = 0; j < GameManager.TEAM_SIZE; j++) {
-                blueActions[i, j].Dispose();
-                blueLog_Probs[i, j].Dispose();
-                redActions[i, j].Dispose();
-                redLog_Probs[i, j].Dispose();
-            }
-        }
+        time_step = 0;
     }
 }

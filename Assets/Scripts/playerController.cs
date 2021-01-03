@@ -1,4 +1,4 @@
-using System.Collections;
+/*using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -15,4 +15,4 @@ public class playerController : MonoBehaviour
      float xAxis = Input.getInputAxis("Horizontal");
      float yAxis = Input.getInputAxis("Vertical");   
     }
-}
+}*/
