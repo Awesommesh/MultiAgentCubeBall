@@ -12,6 +12,8 @@ public struct NNStepForwardJob : IJob {
     [ReadOnly]
     public NativeArray<double> input;
     [ReadOnly]
+    public int numInputs;
+    [ReadOnly]
     public ActivationType activation;
     
     public NativeArray<double> layerOutput;
@@ -20,9 +22,9 @@ public struct NNStepForwardJob : IJob {
 
     public void Execute() {
         NativeArray<int> inputShape = new NativeArray<int>(2, Allocator.Temp);
-        inputShape[0] = input.Length;
-        inputShape[1] = 1;
-        NativeNDOps.Dot(weights, weightsShape, input, inputShape, layerOutput);
+        inputShape[0] = weightsShape[1];
+        inputShape[1] = numInputs;
+        NativeNDOps.Dot(weights, weightsShape, 0, input, inputShape, 0, layerOutput);
         inputShape.Dispose();
         NativeNDOps.ActivationFunction(activation, layerOutput, activationOutput);
     }

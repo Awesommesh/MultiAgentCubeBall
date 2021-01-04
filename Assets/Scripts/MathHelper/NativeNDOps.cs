@@ -18,7 +18,7 @@ public struct NativeNDOps : IComponentData {
 
     //No Check for incorrect dimensions!!!
     [BurstCompile]
-    public static void Dot(NativeArray<double> a, NativeArray<int> aShape, NativeArray<double> b, NativeArray<int> bShape, NativeArray<double> output) {
+    public static void Dot(NativeArray<double> a, NativeArray<int> aShape, int aTranspose, NativeArray<double> b, NativeArray<int> bShape, int bTranspose, NativeArray<double> output) {
         //output shape = [aShape[0], bShape[1]];
         for (int i = 0; i < aShape[0]; i++) {
             for (int j = 0; j < bShape[1]; j++) {
@@ -38,6 +38,18 @@ public struct NativeNDOps : IComponentData {
             for (int j = 0; j < aShape[1]; j++) {
                 output[j*aShape[0]+i] = a[i*aShape[1] + j];
             }
+        }
+    }
+
+    [BurstCompile]
+    public static double ActivationFunction(ActivationType type, double input) {
+        switch(type) {
+            case ActivationType.ReLU:
+                return ReLU(input);
+            case ActivationType.Sigmoid:
+                return Sigmoid(input);
+            default:
+                return input;
         }
     }
 

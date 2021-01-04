@@ -200,7 +200,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 326382803}
   m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: 0, y: 20, z: 0}
+  m_LocalPosition: {x: 0, y: 30, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 898156936}
@@ -239,8 +239,9 @@ MonoBehaviour:
   NUM_ENV: 1
   BATCH_SIZE: 0
   MINI_BATCH_SIZE: 32
+  NUM_MINI_BATCHES: 0
   ADAM_BATCH_SIZE: 32
-  PPO_EPOCHS: 1
+  NUM_PPO_EPOCHS: 1
   numLayers: 5
   interval: 4
   actorLog_Std: []

@@ -40,7 +40,7 @@ public class test : MonoBehaviour
         Debug.Log("b: ");
         printMatrix(bShape, bData);
 
-        NativeNDOps.Dot(aData, aShape, bData, bShape, output);
+        //NativeNDOps.Dot(aData, aShape, bData, bShape, output);
 
         Debug.Log("Dot Product: ");
         printMatrix(outputShape, output);

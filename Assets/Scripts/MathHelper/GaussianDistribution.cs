@@ -46,16 +46,32 @@ public struct GaussianDistribution : IComponentData {
         }
         return log_probs;
     }
+
     public static NativeArray<double> log_prob(NativeArray<double> x, NativeArray<double> mean, NativeArray<double> std, 
+        int shape0, int shape1, Allocator allocator) {
+        NativeArray<double> log_probs = new NativeArray<double> (x.Length, allocator);
+        for (int i = 0; i < shape0; i++) {
+            for (int j = 0; j < shape1; j++) {
+                log_probs[i*shape1 + j] = log_prob(x[i*shape1 + j], mean[i*shape1 + j], std[i]);
+            }
+        }
+        return log_probs;
+    }
+
+    /*public static NativeArray<double> log_prob(NativeArray<double> x, NativeArray<double> mean, NativeArray<double> std, 
         int startInd, int len, Allocator allocator) {
         NativeArray<double> log_probs = new NativeArray<double> (len, allocator);
         for (int i = startInd; i < startInd+len; i++) {
             log_probs[i-startInd] = log_prob(x[i], mean[i], std[i-startInd]);
         }
         return log_probs;
-    }
+    }*/
 
     //Backwards of log_prob = grad * ((x_t-u(s_t))/std^2)
+    public static double log_prob_back(double x, double mean, double std) {
+        return (x-mean)/math.pow(std, 2);
+    }
+
     public static NDArray log_prob_back(NDArray x, NDArray mean, NDArray std) {
         return ((x-mean)/NDArray.Pow(std, 2));
     }
@@ -69,13 +85,24 @@ public struct GaussianDistribution : IComponentData {
     }
 
     public static NativeArray<double> log_prob_back(NativeArray<double> x, NativeArray<double> mean, NativeArray<double> std, 
+        int shape0, int shape1, Allocator allocator) {
+        NativeArray<double> log_prob_b = new NativeArray<double> (x.Length, allocator);
+        for (int i = 0; i < shape0; i++) {
+            for (int j = 0; j < shape1; j++) {
+                log_prob_b[i*shape1 + j] = log_prob_back(x[i*shape1 + j], mean[i*shape1 + j], std[i]);
+            }
+        }
+        return log_prob_b;
+    }
+
+    /*public static NativeArray<double> log_prob_back(NativeArray<double> x, NativeArray<double> mean, NativeArray<double> std, 
         int startInd, int len, Allocator allocator) {
         NativeArray<double> log_prob_back = new NativeArray<double> (len, allocator);
         for (int i = startInd; i < startInd+len; i++) {
             log_prob_back[i-startInd] = (x[i]-mean[i])/math.pow(std[i-startInd], 2);
         }
         return log_prob_back;
-    }
+    }*/
 
     public static double entropy(double std) {
         return 0.5 + 0.5 * math.log(2 * math.PI) + math.log(std);

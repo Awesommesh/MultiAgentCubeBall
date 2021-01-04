@@ -3,6 +3,7 @@ using Unity.Mathematics;
 using Unity.Jobs;
 using UnityEngine;
 using Unity.Burst;
+using System;
 public class Experience {
     //Blue Team
     public NDArray blueRewards;
@@ -74,7 +75,7 @@ public class Experience {
         this.redGoal = redGoal;
         redWon = false;
 
-        //Red Blue Initialization loop
+        //Red Blue Initialization loops
         for (int i = 0; i < GameManager.EPISODE_LENGTH; i++) {
             //Red Blue State init
             blueStates[i] = new NativeArray<double>(GameManager.STATE_SIZE, Allocator.Persistent);
@@ -84,9 +85,15 @@ public class Experience {
             for (int j = 0; j < GameManager.TEAM_SIZE; j++) {
                 blueActions[i, j] = new NativeArray<double>(GameManager.NUM_ACTIONS, Allocator.Persistent);
                 blueLog_Probs[i, j] = new NativeArray<double>(GameManager.NUM_ACTIONS, Allocator.Persistent);
+                blueValues[i, j] = new NativeArray<double>(1, Allocator.Persistent);
                 redActions[i, j] = new NativeArray<double>(GameManager.NUM_ACTIONS, Allocator.Persistent);
                 redLog_Probs[i, j] = new NativeArray<double>(GameManager.NUM_ACTIONS, Allocator.Persistent);
+                redValues[i, j] = new NativeArray<double>(1, Allocator.Persistent);
             }
+        }
+        for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
+            blueNextVals[i] = new NativeArray<double>(1, Allocator.Persistent);
+            redNextVals[i] = new NativeArray<double>(1, Allocator.Persistent);
         }
     }
 
@@ -285,21 +292,22 @@ public class Experience {
             actionDists[i, 1] = new NativeArray<double>(GameManager.NUM_ACTIONS, Allocator.Persistent);
 
             //Forward Step on Blue Agents + Critics
-            forwardJobHandles.Add(blueAgents[i].Forward(curBlueState, ref actionDists[i, 0], id));
-            blueValues[time_step, i] = new NativeArray<double>(1, Allocator.Persistent);
-            forwardJobHandles.Add(blueCritics[i].Forward(curBlueState, ref blueValues[time_step, i], id));
+            forwardJobHandles.Add(blueAgents[i].Forward(curBlueState, 1, ref actionDists[i, 0], id));
+            forwardJobHandles.Add(blueCritics[i].Forward(curBlueState, 1, ref blueValues[time_step, i], id));
             id++;
 
             //Forward Step on Red Agents + Critics
-            forwardJobHandles.Add(redAgents[i].Forward(curRedState, ref actionDists[i, 1], id));
-            redValues[time_step, i] = new NativeArray<double>(1, Allocator.Persistent);
-            forwardJobHandles.Add(redCritics[i].Forward(curRedState, ref redValues[time_step, i], id));
+            forwardJobHandles.Add(redAgents[i].Forward(curRedState, 1, ref actionDists[i, 1], id));
+            forwardJobHandles.Add(redCritics[i].Forward(curRedState, 1, ref redValues[time_step, i], id));
             id++;
         }
         JobHandle.CompleteAll(forwardJobHandles);
         forwardJobHandles.Dispose();
         curBlueState.Dispose();
         curRedState.Dispose();
+        /*for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
+
+        }*/
 
         //Apply Forces on Agents
         for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
@@ -311,7 +319,6 @@ public class Experience {
             rb = bluePlayers[i].GetComponent<Rigidbody>();
             Vector3d force = Vector3d.Normalize(new Vector3d(blueActions[time_step, i][0], 0, blueActions[time_step, i][1]));
             force *= GameManager.MAX_SPEED*Sigmoid(blueActions[time_step, i][2]);
-            //UnityEngine.Debug.Log(force);
             rb.velocity = new Vector3((float)force[0], (float)force[1], (float)force[2]);
 
             //Red Team Actions
@@ -322,7 +329,6 @@ public class Experience {
             rb = redPlayers[i].GetComponent<Rigidbody>();
             force = Vector3d.Normalize(new Vector3d(redActions[time_step, i][0], 0, redActions[time_step, i][1]));
             force *= GameManager.MAX_SPEED*Sigmoid(redActions[time_step, i][2]);
-            //UnityEngine.Debug.Log(force);
             rb.velocity = new Vector3((float)force[0], (float)force[1], (float)force[2]);
             actionDists[i, 0].Dispose();
             actionDists[i, 1].Dispose();
@@ -459,11 +465,9 @@ public class Experience {
         NativeList<JobHandle> forwardJobHandles = new NativeList<JobHandle>(GameManager.TEAM_SIZE * 2, Allocator.Persistent);
         int id = 0;
         for (int i = 0; i  < GameManager.TEAM_SIZE; i++) {
-            blueNextVals[i] = new NativeArray<double>(1, Allocator.Persistent);
-            redNextVals[i] = new NativeArray<double>(1, Allocator.Persistent);
-            forwardJobHandles.Add(blueCritics[i].Forward(curBlueState, ref blueNextVals[i], id));
+            forwardJobHandles.Add(blueCritics[i].Forward(curBlueState, 1, ref blueNextVals[i], id));
             id++;
-            forwardJobHandles.Add(redCritics[i].Forward(curRedState, ref redNextVals[i], id));
+            forwardJobHandles.Add(redCritics[i].Forward(curRedState, 1, ref redNextVals[i], id));
             id++;
             //Stop agents due to end of episode
             rb = bluePlayers[i].GetComponent<Rigidbody>();
@@ -573,9 +577,15 @@ public class Experience {
             for (int j = 0; j < GameManager.TEAM_SIZE; j++) {
                 blueActions[i, j].Dispose();
                 blueLog_Probs[i, j].Dispose();
+                blueValues[i, j].Dispose();
                 redActions[i, j].Dispose();
                 redLog_Probs[i, j].Dispose();
+                redValues[i, j].Dispose();
             }
+        }
+        for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
+            blueNextVals[i].Dispose();
+            redNextVals[i].Dispose();
         }
     }
 
@@ -593,6 +603,8 @@ public class Experience {
             bluePlayers[i].transform.position = blueOriginalPos[i];
             redPlayers[i].transform.position = redOriginalPos[i];
         }
+        Rigidbody ballRb = ball.GetComponent<Rigidbody>();
+        ballRb.velocity = new Vector3(0f, 0f, 0f);
         time_step = 0;
     }
 }

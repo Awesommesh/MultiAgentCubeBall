@@ -23,19 +23,21 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
     int numInputs;
     int numOutputs;
     int maxForwardCalls;
+    int maxBatchSize;
 
     ActivationType[] activations;
     public NativeArray<double> log_std;
     public double entropy;
     NativeArray<double>[,] inputs;
-    NativeArray<double>[,] activationInputs;
+    public NativeArray<double>[,] activationInputs;
     public NativeArray<double>[] weights;
-    NativeArray<int>[] weightsShape;
+    public NativeArray<int>[] weightsShape;
 
     public NeuralNetwork(int numLayers, ActivationType[] activations, ref NativeArray<double>[] weights, ref NativeArray<int>[] weightsShape, int numInputs, int numOutputs, 
-        double[] log_stdVals, double alpha, double beta1, double beta2, double epsilon, int adamJobBatchSize, int maxForwardCalls) {
+        double[] log_stdVals, double alpha, double beta1, double beta2, double epsilon, int adamJobBatchSize, int maxForwardCalls, int maxBatchSize) {
         this.numLayers = numLayers;
         this.maxForwardCalls = maxForwardCalls;
+        this.maxBatchSize = maxBatchSize;
         this.activations = activations;
         this.weights = weights;
         this.weightsShape = weightsShape;
@@ -48,8 +50,8 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
         activationInputs = new NativeArray<double>[maxForwardCalls, numLayers];
         for (int i = 0; i < maxForwardCalls; i++) {
             for (int j = 0; j < numLayers; j++) {
-                inputs[i, j] = new NativeArray<double>(weightsShape[j][1], Allocator.Persistent);
-                activationInputs[i, j] = new NativeArray<double>(weightsShape[j][0], Allocator.Persistent);
+                inputs[i, j] = new NativeArray<double>(weightsShape[j][1]*maxBatchSize, Allocator.Persistent);
+                activationInputs[i, j] = new NativeArray<double>(weightsShape[j][0]*maxBatchSize, Allocator.Persistent);
             }
             inputs[i, 0].Dispose();
         }
@@ -90,7 +92,7 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
         iteration = 0;
     }
 
-    public JobHandle Forward(NativeArray<double> input, ref NativeArray<double> output, int id) {
+    public JobHandle Forward(NativeArray<double> input, int numInputs, ref NativeArray<double> output, int id) {
         inputs[id, 0] = input;
         JobHandle prevLayerHandle = new JobHandle();
         for (int i = 0; i < numLayers; i++) {
@@ -100,11 +102,12 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
                 activationOutput = output;
             } else {
                 activationOutput = inputs[id, i+1];
-            }            
+            }
             NNStepForwardJob stepForwardJob = new NNStepForwardJob {
                 weights = weights[i],
                 weightsShape = weightsShape[i],
                 input = inputs[id, i],
+                numInputs = numInputs,
                 activation = activations[i],
                 layerOutput = activationInputs[id, i],
                 activationOutput = activationOutput
@@ -123,9 +126,45 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
         }
         UnityEngine.Debug.Log("HUGE ERROR IN FORWARD FUNCTION. RETURNING INPUT AS OUTPUT!!!");
         return new JobHandle();
+        /*inputs[id, 0] = input;
+        JobHandle prevLayerHandle = new JobHandle();
+        for (int i = 0; i < numLayers; i++) {
+            //Step Forward Job
+            NativeArray<double> activationOutput;
+            if (i+1 == numLayers) {
+                activationOutput = output;
+            } else {
+                activationOutput = inputs[id, i+1];
+            }
+            NativeArray<JobHandle> dotJobs = new NativeArray<JobHandle>(weightsShape[i][0], Allocator.Persistent);
+            for(int j = 0; j < weightsShape[i][0]; j++) {
+                DotProductJobWithActivations dotJ = new DotProductJobWithActivations {
+                    a = weights[i],
+                    b = inputs[id, i],
+                    len = weightsShape[i][1],
+                    rowInd = j,
+                    outputLen = numInputs,
+                    activation = activations[i],
+                    output = activationInputs[id, i],
+                    activationOutput = activationOutput
+                };
+                if (i == 0) {
+                    dotJobs[j] = dotJ.Schedule(numInputs, math.max(numInputs/4, 1));
+                } else {
+                    dotJobs[j] = dotJ.Schedule(numInputs, math.max(numInputs/4, 1), prevLayerHandle);
+                }
+            }
+            JobHandle curLayerHandle = JobHandle.CombineDependencies(dotJobs);
+            if (i+1 == numLayers) {
+                return curLayerHandle;
+            }
+            prevLayerHandle = curLayerHandle;
+        }
+        UnityEngine.Debug.Log("HUGE ERROR IN FORWARD FUNCTION. RETURNING INPUT AS OUTPUT!!!");
+        return new JobHandle();*/
     }
 
-    public JobHandle Forward(NativeArray<double> input, ref NativeArray<double> output, int id, ref JobHandle dependency) {
+    public JobHandle Forward(NativeArray<double> input, int numInputs, ref NativeArray<double> output, int id, ref JobHandle dependency) {
         inputs[id, 0] = input;
         JobHandle prevLayerHandle = new JobHandle();
         for (int i = 0; i < numLayers; i++) {
@@ -140,6 +179,7 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
                 weights = weights[i],
                 weightsShape = weightsShape[i],
                 input = inputs[id, i],
+                numInputs = numInputs,
                 activation = activations[i],
                 layerOutput = activationInputs[id, i],
                 activationOutput = activationOutput
@@ -160,7 +200,7 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
         return new JobHandle();
     }
 
-    public JobHandle Backward(NativeArray<double> grad, int id) {
+    public JobHandle Backward(NativeArray<double> grad, int numGrads, int id) {
         JobHandle prevLayerHandle = new JobHandle();
         JobHandle curAdamHandle = new JobHandle();
         NativeArray<double> gradient;
@@ -172,13 +212,14 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
                 gradient = layerGrads[i+1];
             }
             weightsGrads[i] = new NativeArray<double>(weights[i].Length, Allocator.TempJob);
-            layerGrads[i] = new NativeArray<double>(weightsShape[i][1], Allocator.TempJob);
+            layerGrads[i] = new NativeArray<double>(weightsShape[i][1]*numGrads, Allocator.TempJob);
             NNStepBackwardJob stepBackwardJob = new NNStepBackwardJob {
                 weights = weights[i],
                 weightsShape = weightsShape[i],
                 layerInput = inputs[id, i],
                 activationInput = activationInputs[id, i],
                 grad = gradient,
+                numGrads = numGrads,
                 activation = activations[i],
                 weightsGrad = weightsGrads[i],
                 layerGrad = layerGrads[i]
@@ -210,8 +251,8 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
         iteration++;
         return curAdamHandle;
     }
-
-    public JobHandle Backward(NativeArray<double> grad, int id, ref JobHandle dependency) {
+    
+    public JobHandle Backward(NativeArray<double> grad, int numGrads, int id, ref JobHandle dependency) {
         JobHandle prevLayerHandle = new JobHandle();
         JobHandle curAdamHandle = new JobHandle();
         NativeArray<double> gradient;
@@ -222,14 +263,15 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
             } else {
                 gradient = layerGrads[i+1];
             }
-            weightsGrads[i] = new NativeArray<double>(weights[i].Length, Allocator.TempJob);
-            layerGrads[i] = new NativeArray<double>(weightsShape[i][1], Allocator.TempJob);
+            weightsGrads[i] = new NativeArray<double>(weights[i].Length, Allocator.Persistent);
+            layerGrads[i] = new NativeArray<double>(weightsShape[i][1]*numGrads, Allocator.Persistent);
             NNStepBackwardJob stepBackwardJob = new NNStepBackwardJob {
                 weights = weights[i],
                 weightsShape = weightsShape[i],
                 layerInput = inputs[id, i],
                 activationInput = activationInputs[id, i],
                 grad = gradient,
+                numGrads = numGrads,
                 activation = activations[i],
                 weightsGrad = weightsGrads[i],
                 layerGrad = layerGrads[i]
@@ -267,7 +309,9 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
             weightsShape[i].Dispose();
             weights[i].Dispose();
             for (int j = 0; j < maxForwardCalls; j++) {
-                inputs[j, i].Dispose();
+                if (i != 0) {
+                    inputs[j, i].Dispose();
+                }
                 activationInputs[j, i].Dispose();
             }
             V_dw[i].Dispose();
