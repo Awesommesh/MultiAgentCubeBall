@@ -541,7 +541,15 @@ public class Experience {
     [BurstCompile]
     public double blueReward() {
         if (!redWon && !blueWon) {
-            return 1-(math.abs(ball.transform.position.x-redGoal.transform.position.x)/GameManager.FIELD_LENGTH);
+            //Avg Distance of players to ball
+            double totDist = 0;
+            for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
+                totDist += math.abs(ball.transform.position.x-bluePlayers[i].transform.position.x)/GameManager.FIELD_LENGTH;
+            }
+            totDist /= GameManager.TEAM_SIZE;
+            return totDist;
+            //Distance of ball to goal
+            //return 1-(math.abs(ball.transform.position.x-redGoal.transform.position.x)/GameManager.FIELD_LENGTH);
         } else if (redWon) {
             return -1000;
         } else {
@@ -552,7 +560,15 @@ public class Experience {
     [BurstCompile]
     public double redReward() {
         if (!redWon && !blueWon) {
-            return 1-(math.abs(ball.transform.position.x-blueGoal.transform.position.x)/GameManager.FIELD_LENGTH);
+            //Avg Distance of players to ball
+            double totDist = 0;
+            for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
+                totDist += math.abs(ball.transform.position.x-redPlayers[i].transform.position.x)/GameManager.FIELD_LENGTH;
+            }
+            totDist /= GameManager.TEAM_SIZE;
+            return totDist;
+            //Distance of ball to goal
+            //return 1-(math.abs(ball.transform.position.x-blueGoal.transform.position.x)/GameManager.FIELD_LENGTH);
         } else if (blueWon) {
             return -1000;
         } else {

@@ -16,7 +16,7 @@ public class GameManager : MonoBehaviour
     public static double BETA1 = 0.9;
     public static double BETA2 = 0.999;
     public static double EPSILON = 0.00000001;
-    public static int EPISODE_LENGTH = 512;
+    public static int EPISODE_LENGTH = 256;
     public int BATCH_SIZE;
     public int MINI_BATCH_SIZE = 16;
     public int NUM_MINI_BATCHES;
