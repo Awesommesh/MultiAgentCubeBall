@@ -16,7 +16,7 @@ public class GameManager : MonoBehaviour
     public static double BETA1 = 0.9;
     public static double BETA2 = 0.999;
     public static double EPSILON = 0.00000001;
-    public static int EPISODE_LENGTH = 128;
+    public static int EPISODE_LENGTH = 512;
     public int BATCH_SIZE;
     public int MINI_BATCH_SIZE = 16;
     public int NUM_MINI_BATCHES;
@@ -142,19 +142,19 @@ public class GameManager : MonoBehaviour
         //Have to hard code layer shapes ...
         //layer 1
         layerShapes[0][0] = 228;
-        layerShapes[0][1] = STATE_SIZE;
+        layerShapes[0][1] = STATE_SIZE+1;
         //layer 2
         layerShapes[1][0] = 684;
-        layerShapes[1][1] = 228;
+        layerShapes[1][1] = 228+1;
         //layer 3
         layerShapes[2][0] = 342;
-        layerShapes[2][1] = 684;
+        layerShapes[2][1] = 684+1;
         //layer 4
         layerShapes[3][0] = 171;
-        layerShapes[3][1] = 342;
+        layerShapes[3][1] = 342+1;
         //layer 5
         layerShapes[4][0] = 3;
-        layerShapes[4][1] = 171;
+        layerShapes[4][1] = 171+1;
 
         actorLog_Std = new double[NUM_ACTIONS];
         for (int i = 0; i < NUM_ACTIONS; i++) {
@@ -195,6 +195,12 @@ public class GameManager : MonoBehaviour
                 curShape[j][1] = layerShapes[j][1];
                 weights[j] = NativeNDOps.HeInitializedNDArray(layerShapes[j], layerShapes[j][1], Allocator.Persistent);
             }
+            activationList = new ActivationType[numLayers];
+            activationList[0] = ActivationType.ReLU;
+            activationList[1] = ActivationType.ReLU;
+            activationList[2] = ActivationType.ReLU;
+            activationList[3] = ActivationType.ReLU;
+            activationList[4] = ActivationType.Sigmoid;
             critics[i] = new NeuralNetwork(numLayers, activationList, ref weights, ref curShape, STATE_SIZE, 1, 
                 criticLog_Std, ALPHA, BETA1, BETA2, EPSILON, ADAM_BATCH_SIZE, BATCH_SIZE, MINI_BATCH_SIZE);
         }
@@ -214,7 +220,7 @@ public class GameManager : MonoBehaviour
                 }
                 episode_iteration++;
             } else if (episode_iteration == EPISODE_LENGTH) { //Learn from experiences...
-                Debug.Log("Begun Training...");
+                Debug.Log("Began Training...");
                 actor_loss = 0;
                 critic_loss = 0;
                 total_loss = 0;
@@ -334,7 +340,6 @@ public class GameManager : MonoBehaviour
             }
             JobHandle.CompleteAll(forwardJobHandles);
             forwardJobHandles.Dispose();
-
             NativeList<JobHandle> backwardAndPPOJobHandles = new NativeList<JobHandle>(TEAM_SIZE*3, Allocator.Persistent);
             NativeArray<double>[] AL = new NativeArray<double>[TEAM_SIZE];
             NativeArray<double>[] CL = new NativeArray<double>[TEAM_SIZE];
@@ -364,7 +369,7 @@ public class GameManager : MonoBehaviour
                 JobHandle ppoHandle = ppoJob.Schedule();
                 backwardAndPPOJobHandles.Add(ppoHandle);
                 backwardAndPPOJobHandles.Add(agents[j].Backward(actorGrads[j], MINI_BATCH_SIZE, j, ref ppoHandle));
-                backwardAndPPOJobHandles.Add(critics[j].Backward(criticGrads[j], MINI_BATCH_SIZE, j, ref ppoHandle));
+                //backwardAndPPOJobHandles.Add(critics[j].Backward(criticGrads[j], MINI_BATCH_SIZE, j, ref ppoHandle));
             }
             JobHandle.CompleteAll(backwardAndPPOJobHandles);
             backwardAndPPOJobHandles.Dispose();
@@ -374,7 +379,7 @@ public class GameManager : MonoBehaviour
                 AL[j].Dispose();
                 CL[j].Dispose();
                 agents[j].resetGrads();
-                critics[j].resetGrads();
+                //critics[j].resetGrads();
             }
         }        
     }

@@ -305,9 +305,6 @@ public class Experience {
         forwardJobHandles.Dispose();
         curBlueState.Dispose();
         curRedState.Dispose();
-        /*for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
-
-        }*/
 
         //Apply Forces on Agents
         for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
@@ -538,14 +535,13 @@ public class Experience {
             nativeBlueValues.Dispose();
             nativeRedRewards.Dispose();
             nativeRedValues.Dispose();
-
         }
     }
     
     [BurstCompile]
     public double blueReward() {
         if (!redWon && !blueWon) {
-            return math.abs(ball.transform.position.x-redGoal.transform.position.x)/GameManager.FIELD_LENGTH;
+            return 1-(math.abs(ball.transform.position.x-redGoal.transform.position.x)/GameManager.FIELD_LENGTH);
         } else if (redWon) {
             return -1000;
         } else {
@@ -556,7 +552,7 @@ public class Experience {
     [BurstCompile]
     public double redReward() {
         if (!redWon && !blueWon) {
-            return math.abs(ball.transform.position.x-blueGoal.transform.position.x)/GameManager.FIELD_LENGTH;
+            return 1-(math.abs(ball.transform.position.x-blueGoal.transform.position.x)/GameManager.FIELD_LENGTH);
         } else if (blueWon) {
             return -1000;
         } else {

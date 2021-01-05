@@ -3,7 +3,7 @@ using Unity.Mathematics;
 using Unity.Collections;
 using Unity.Burst;
 
-[BurstCompile]
+//[BurstCompile]
 public struct NNStepForwardJob : IJob {
     [ReadOnly]
     public NativeArray<double> weights;
@@ -15,6 +15,8 @@ public struct NNStepForwardJob : IJob {
     public int numInputs;
     [ReadOnly]
     public ActivationType activation;
+    [ReadOnly]
+    public int shouldAppendOnes;
     
     public NativeArray<double> layerOutput;
     [WriteOnly]
@@ -26,7 +28,14 @@ public struct NNStepForwardJob : IJob {
         inputShape[1] = numInputs;
         NativeNDOps.Dot(weights, weightsShape, 0, input, inputShape, 0, layerOutput);
         inputShape.Dispose();
-        NativeNDOps.ActivationFunction(activation, layerOutput, activationOutput);
+        if (shouldAppendOnes == 1) {
+            NativeArray<double> curOuput = new NativeArray<double>(weightsShape[0]*numInputs, Allocator.Temp);
+            NativeNDOps.ActivationFunction(activation, layerOutput, ref curOuput);
+            NativeNDOps.appendOnes(ref activationOutput, curOuput, numInputs, weightsShape[0]);
+            curOuput.Dispose();
+        } else {
+            NativeNDOps.ActivationFunction(activation, layerOutput, ref activationOutput);
+        }
     }
 
 }

@@ -241,7 +241,7 @@ MonoBehaviour:
   MINI_BATCH_SIZE: 32
   NUM_MINI_BATCHES: 0
   ADAM_BATCH_SIZE: 32
-  NUM_PPO_EPOCHS: 1
+  NUM_PPO_EPOCHS: 10
   numLayers: 5
   interval: 4
   actorLog_Std: []

@@ -2,45 +2,65 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
+using System.Runtime.InteropServices;
 public class test : MonoBehaviour
 {
     // Start is called before the first frame update
-    void Start()
+    unsafe void Start()
     {
         NativeArray<int> aShape = new NativeArray<int>(2, Allocator.Persistent);
-        aShape[0]=2;
-        aShape[1]=3;
+        aShape[0]=3;
+        aShape[1]=2;
         NativeArray<double> aData = new NativeArray<double>(6, Allocator.Persistent);
-        aData[0] = -1.0;
-        aData[1] = -2.0;
-        aData[2] = -3.0;
-        aData[3] = 0.0;
-        aData[4] = 5.0;
-        aData[5] = 6.0;
+        aData[0] = 1;
+        aData[1] = 2;
+        aData[2] = 3;
+        aData[3] = 4;
+        aData[4] = 5;
+        aData[5] = 6;
+
+        /*NativeArray<double> aOnes = new NativeArray<double>(9, Allocator.Persistent);
+        NativeArray<int> aOnesShape = new NativeArray<int>(2, Allocator.Persistent);
+        aOnesShape[0]=3;
+        aOnesShape[1]=3;
+
+        NativeNDOps.appendOnes(ref aOnes, aData, 3, 2);
+        Debug.Log("aOnes: ");
+        printMatrix(aOnesShape, aOnes);*/
         
         NativeArray<int> bShape = new NativeArray<int>(2, Allocator.Persistent);
         bShape[0]=3;
         bShape[1]=2;
         NativeArray<double> bData = new NativeArray<double>(6, Allocator.Persistent);
-        bData[0] = 1.0;
-        bData[1] = 2.0;
-        bData[2] = 3.0;
-        bData[3] = 4.0;
-        bData[4] = 5.0;
-        bData[5] = 6.0;
+        bData[0] = 1;
+        bData[1] = 2;
+        bData[2] = 3;
+        bData[3] = 4;
+        bData[4] = 5;
+        bData[5] = 6;
+
+
 
         NativeArray<int> outputShape = new NativeArray<int>(2, Allocator.Persistent);
         outputShape[0] = 2;
         outputShape[1] = 2;
         NativeArray<double> output= new NativeArray<double>(4, Allocator.Persistent);
-    
+
+        for (int i = 0; i < 4; i++) {
+            output[i] = 0;
+        }
+
         Debug.Log("a: ");
         printMatrix(aShape, aData);
 
         Debug.Log("b: ");
         printMatrix(bShape, bData);
 
-        //NativeNDOps.Dot(aData, aShape, bData, bShape, output);
+        //NativeNDOps.Dot(aData, aShape, 0, bData, bShape, 0, output);
+        matmul(1, 0, aShape[0], aShape[1], bShape[0], bShape[1], (double *)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(aData), 
+        (double *)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(bData), 
+        (double *)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(output));
 
         Debug.Log("Dot Product: ");
         printMatrix(outputShape, output);
@@ -53,15 +73,15 @@ public class test : MonoBehaviour
 
         Debug.Log("FeedFwd function output tests");
 
-        NativeNDOps.ActivationFunction(ActivationType.Sigmoid, aData, functionOut);
+        NativeNDOps.ActivationFunction(ActivationType.Sigmoid, aData, ref functionOut);
         Debug.Log("Sigmoid of a: ");
         printMatrix(functionOutShape, functionOut);
 
-        NativeNDOps.ActivationFunction(ActivationType.ReLU, aData, functionOut);
+        NativeNDOps.ActivationFunction(ActivationType.ReLU, aData, ref functionOut);
         Debug.Log("ReLU of a: ");
         printMatrix(functionOutShape, functionOut);
 
-        NativeNDOps.ActivationFunction(ActivationType.None, aData, functionOut);
+        NativeNDOps.ActivationFunction(ActivationType.None, aData, ref functionOut);
         Debug.Log("Default of a: ");
         printMatrix(functionOutShape, functionOut);
 
@@ -100,6 +120,10 @@ public class test : MonoBehaviour
     {
         
     }
+
+    [DllImport("/Users/animeshagrawal/repositories/MultiAgentCubeBall/Assets/Scripts/MathHelper/matmul.dylib")]
+    public static extern unsafe void matmul(int transA, int transB, int A_width, int A_height, int B_width, int B_height, 
+        double* A, double* B, double* output);
 
     void printMatrix(NativeArray<int> aShape, NativeArray<double> a){
         string str = "";
