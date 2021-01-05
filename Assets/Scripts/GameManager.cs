@@ -317,7 +317,7 @@ public class GameManager : MonoBehaviour
                     //Reset environment for next run;
                     envs[i].resetEnv();
                 }
-                //Need to reset agents adam optimizers?;
+                //Need to reset agents adam optimizers?;*/
                 /*for (int i = 0; i < TEAM_SIZE; i++) {
                     agents[i].resetOptimizerWeights();
                     critics[i].resetOptimizerWeights();
@@ -369,7 +369,7 @@ public class GameManager : MonoBehaviour
                 JobHandle ppoHandle = ppoJob.Schedule();
                 backwardAndPPOJobHandles.Add(ppoHandle);
                 backwardAndPPOJobHandles.Add(agents[j].Backward(actorGrads[j], MINI_BATCH_SIZE, j, ref ppoHandle));
-                //backwardAndPPOJobHandles.Add(critics[j].Backward(criticGrads[j], MINI_BATCH_SIZE, j, ref ppoHandle));
+                backwardAndPPOJobHandles.Add(critics[j].Backward(criticGrads[j], MINI_BATCH_SIZE, j, ref ppoHandle));
             }
             JobHandle.CompleteAll(backwardAndPPOJobHandles);
             backwardAndPPOJobHandles.Dispose();
@@ -379,7 +379,7 @@ public class GameManager : MonoBehaviour
                 AL[j].Dispose();
                 CL[j].Dispose();
                 agents[j].resetGrads();
-                //critics[j].resetGrads();
+                critics[j].resetGrads();
             }
         }        
     }
