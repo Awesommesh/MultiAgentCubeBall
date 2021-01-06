@@ -26,15 +26,15 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
     int maxBatchSize;
 
     ActivationType[] activations;
-    public NativeArray<double> log_std;
+    public NativeArray<double> std;
     public double entropy;
     NativeArray<double>[,] inputs;
     public NativeArray<double>[,] activationInputs;
     public NativeArray<double>[] weights;
     public NativeArray<int>[] weightsShape;
 
-    public NeuralNetwork(int numLayers, ActivationType[] activations, ref NativeArray<double>[] weights, ref NativeArray<int>[] weightsShape, int numInputs, int numOutputs, 
-        double[] log_stdVals, double alpha, double beta1, double beta2, double epsilon, int adamJobBatchSize, int maxForwardCalls, int maxBatchSize) {
+    public NeuralNetwork(int numLayers, ActivationType[] activations, NativeArray<double>[] weights, NativeArray<int>[] weightsShape, int numInputs, int numOutputs, 
+        double[] stdVals, double alpha, double beta1, double beta2, double epsilon, int adamJobBatchSize, int maxForwardCalls, int maxBatchSize) {
         this.numLayers = numLayers;
         this.maxForwardCalls = maxForwardCalls;
         this.maxBatchSize = maxBatchSize;
@@ -71,14 +71,14 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
         this.beta2 = beta2;
         this.epsilon = epsilon;
         
-        log_std = new NativeArray<double>(log_stdVals.Length, Allocator.Persistent);
-        double log_std_mean = 0;
-        for (int i = 0; i < log_stdVals.Length; i++) {
-            log_std[i] = log_stdVals[i];
-            log_std_mean += log_stdVals[i];
+        std = new NativeArray<double>(stdVals.Length, Allocator.Persistent);
+        double std_mean = 0;
+        for (int i = 0; i < stdVals.Length; i++) {
+            std[i] = stdVals[i];
+            std_mean += stdVals[i];
         }
-        log_std_mean /= log_stdVals.Length;
-        entropy = GaussianDistribution.entropy(log_std_mean);
+        std_mean /= stdVals.Length;
+        entropy = GaussianDistribution.entropy(std_mean);
     }
 
     public void resetOptimizerWeights() {
@@ -91,8 +91,8 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
         iteration = 0;
     }
 
-    public JobHandle Forward(NativeArray<double> input, int numInputs, ref NativeArray<double> output, int id) {
-        NativeNDOps.appendOnes(ref inputs[id, 0], input, numInputs, weightsShape[0][1]-1);
+    public JobHandle Forward(NativeArray<double> input, int numInputs, NativeArray<double> output, int id) {
+        NativeNDOps.appendOnes(inputs[id, 0], input, numInputs, weightsShape[0][1]-1);
         JobHandle prevLayerHandle = new JobHandle();
         for (int i = 0; i < numLayers; i++) {
             //Step Forward Job
@@ -130,8 +130,8 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
         return new JobHandle();
     }
 
-    public JobHandle Forward(NativeArray<double> input, int numInputs, ref NativeArray<double> output, int id, ref JobHandle dependency) {
-        NativeNDOps.appendOnes(ref inputs[id, 0], input, numInputs, weightsShape[0][1]-1);
+    public JobHandle Forward(NativeArray<double> input, int numInputs, NativeArray<double> output, int id, JobHandle dependency) {
+        NativeNDOps.appendOnes(inputs[id, 0], input, numInputs, weightsShape[0][1]-1);
         JobHandle prevLayerHandle = new JobHandle();
         for (int i = 0; i < numLayers; i++) {
             //Step Forward Job
@@ -221,7 +221,7 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
         return curAdamHandle;
     }
     
-    public JobHandle Backward(NativeArray<double> grad, int numGrads, int id, ref JobHandle dependency) {
+    public JobHandle Backward(NativeArray<double> grad, int numGrads, int id, JobHandle dependency) {
         JobHandle prevLayerHandle = new JobHandle();
         JobHandle curAdamHandle = new JobHandle();
         NativeArray<double> gradient;
@@ -286,7 +286,7 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
             V_dw[i].Dispose();
             S_dw[i].Dispose();
         }
-        log_std.Dispose();
+        std.Dispose();
     }
 
     public void resetGrads() {

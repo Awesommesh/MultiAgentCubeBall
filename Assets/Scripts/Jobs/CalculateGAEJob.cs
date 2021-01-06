@@ -24,6 +24,8 @@ public struct CalculateGAEJob : IJob {
     public int agentInd;
     [ReadOnly]
     public int TEAM_SIZE;
+    [ReadOnly]
+    public double EPSILON;
 
     [WriteOnly]
     public NativeArray<double> returns;
@@ -50,7 +52,7 @@ public struct CalculateGAEJob : IJob {
         std /= numSteps;
         std = math.sqrt(std);
         for (int i = 0; i < numSteps; i++) {
-            setAdvantages(i, ((getAdvantages(i) - mean)/std));
+            setAdvantages(i, ((getAdvantages(i) - mean)/(std + EPSILON)));
         }
     }
 

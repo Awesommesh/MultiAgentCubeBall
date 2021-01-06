@@ -122,7 +122,7 @@ public struct NativeNDOps : IComponentData {
     }
 
     [BurstCompile]
-    public static void ActivationFunction(ActivationType type, NativeArray<double> input, ref NativeArray<double> output) {
+    public static void ActivationFunction(ActivationType type, NativeArray<double> input, NativeArray<double> output) {
         switch(type) {
             case ActivationType.ReLU:
                 for (int i = 0; i < output.Length; i++) {
@@ -197,7 +197,7 @@ public struct NativeNDOps : IComponentData {
     }
 
     [BurstCompile]
-    public unsafe static void appendOnes(ref NativeArray<double> inputArray, NativeArray<double> inputData, int numInputs, int inputSize) {
+    public unsafe static void appendOnes(NativeArray<double> inputArray, NativeArray<double> inputData, int numInputs, int inputSize) {
         UnsafeUtility.MemCpy(NativeArrayUnsafeUtility.GetUnsafePtr(inputArray),
 				NativeArrayUnsafeUtility.GetUnsafePtr(inputData), 
                 numInputs * inputSize * (long) UnsafeUtility.SizeOf<double>());
@@ -208,7 +208,7 @@ public struct NativeNDOps : IComponentData {
     }
 
     [BurstCompile]
-    public unsafe static void CopyPartial(NativeArray<double> input, ref NativeArray<double> output, int length) {
+    public unsafe static void CopyPartial(NativeArray<double> input, NativeArray<double> output, int length) {
         UnsafeUtility.MemCpy(NativeArrayUnsafeUtility.GetUnsafePtr(output),
 				NativeArrayUnsafeUtility.GetUnsafePtr(input), 
                 length * (long) UnsafeUtility.SizeOf<double>());

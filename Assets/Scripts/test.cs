@@ -73,15 +73,15 @@ public class test : MonoBehaviour
 
         Debug.Log("FeedFwd function output tests");
 
-        NativeNDOps.ActivationFunction(ActivationType.Sigmoid, aData, ref functionOut);
+        NativeNDOps.ActivationFunction(ActivationType.Sigmoid, aData, functionOut);
         Debug.Log("Sigmoid of a: ");
         printMatrix(functionOutShape, functionOut);
 
-        NativeNDOps.ActivationFunction(ActivationType.ReLU, aData, ref functionOut);
+        NativeNDOps.ActivationFunction(ActivationType.ReLU, aData, functionOut);
         Debug.Log("ReLU of a: ");
         printMatrix(functionOutShape, functionOut);
 
-        NativeNDOps.ActivationFunction(ActivationType.None, aData, ref functionOut);
+        NativeNDOps.ActivationFunction(ActivationType.None, aData, functionOut);
         Debug.Log("Default of a: ");
         printMatrix(functionOutShape, functionOut);
 

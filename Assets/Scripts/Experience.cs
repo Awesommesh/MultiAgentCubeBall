@@ -18,6 +18,8 @@ public class Experience {
     private Vector3[] blueOriginalPos;
     public GameObject blueGoal;
     public bool blueWon;
+    bool blueGotGoalReward;
+    public double avgBlueReward;
 
     //Red Team   
     public NDArray redRewards;
@@ -32,20 +34,27 @@ public class Experience {
     private Vector3[] redOriginalPos;
     public GameObject redGoal;
     public bool redWon;
+    bool redGotGoalReward;
+    public double avgRedReward;
 
     //General
     GameObject ball;
     Vector3 ballOriginalPos;
     public NativeArray<int> mask;
     int time_step = 0;
+    GoalDetector ballGoal; 
+    double FIELD_LENGTH;
     
     public Experience (GameObject ball, GameObject blueGoal, GameObject redGoal, GameObject[] blueTeam, GameObject[] redTeam, 
         Vector3 ballOriginalPos, Vector3[] blueOriginalPos, Vector3[] redOriginalPos) {
         //General Initialization
         time_step = 0;
         this.ball = ball;
+        ballGoal = ball.GetComponent<GoalDetector>();
+        ballGoal.init();
         this.ballOriginalPos = ballOriginalPos;
         mask = new NativeArray<int>(GameManager.EPISODE_LENGTH, Allocator.Persistent);
+        FIELD_LENGTH = math.abs(blueGoal.transform.localPosition.x - redGoal.transform.localPosition.x);
 
         //Blue initialization
         blueRewards = new NDArray(GameManager.EPISODE_LENGTH, GameManager.TEAM_SIZE);
@@ -60,6 +69,8 @@ public class Experience {
         this.blueOriginalPos = blueOriginalPos;
         this.blueGoal = blueGoal;
         blueWon = false;
+        blueGotGoalReward = false;
+        avgBlueReward = 0;
 
         //Red Initialization
         redRewards = new NDArray(GameManager.EPISODE_LENGTH, GameManager.TEAM_SIZE);
@@ -74,6 +85,8 @@ public class Experience {
         this.redOriginalPos = redOriginalPos;
         this.redGoal = redGoal;
         redWon = false;
+        redGotGoalReward = false;
+        avgRedReward = 0;
 
         //Red Blue Initialization loops
         for (int i = 0; i < GameManager.EPISODE_LENGTH; i++) {
@@ -101,32 +114,44 @@ public class Experience {
         Rigidbody rb;
         MeshRenderer mesh;
         int stateIndex = 0;
-
-        //Get Mask for time_step
-        mask[time_step] = redWon || blueWon ? 0 : 1;
+        ballGoal.checkGoalScored();
+        if (ballGoal.blueWon || ballGoal.redWon) {
+            if (!redGotGoalReward && !blueGotGoalReward) {
+                blueWon = ballGoal.blueWon;
+                redWon = ballGoal.redWon;
+            }
+            ballGoal.blueWon = false;
+            ballGoal.redWon = false;
+            resetlocalPositions();
+        }
 
         //Get Rewards for State_time_step
         blueRewards[time_step] = blueReward();
         redRewards[time_step] = redReward();
+        avgBlueReward += blueRewards[time_step];
+        avgRedReward += redRewards[time_step];
+
+        //Get Mask for time_step
+        mask[time_step] = blueGotGoalReward && redGotGoalReward ? 0 : 1;
 
         //Common State information for both blue and red
         NativeArray<double> curBlueState = new NativeArray<double>(GameManager.STATE_SIZE, Allocator.Persistent);
         NativeArray<double> curRedState = new NativeArray<double>(GameManager.STATE_SIZE, Allocator.Persistent);
         for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
-            blueStates[time_step][stateIndex] = bluePlayers[i].transform.position.x;
-            redStates[time_step][stateIndex] = bluePlayers[i].transform.position.x;
-            curBlueState[stateIndex] = bluePlayers[i].transform.position.x;
-            curRedState[stateIndex] = bluePlayers[i].transform.position.x;
+            blueStates[time_step][stateIndex] = bluePlayers[i].transform.localPosition.x;
+            redStates[time_step][stateIndex] = bluePlayers[i].transform.localPosition.x;
+            curBlueState[stateIndex] = bluePlayers[i].transform.localPosition.x;
+            curRedState[stateIndex] = bluePlayers[i].transform.localPosition.x;
             stateIndex++;
-            blueStates[time_step][stateIndex] = bluePlayers[i].transform.position.y;
-            redStates[time_step][stateIndex] = bluePlayers[i].transform.position.y;
-            curBlueState[stateIndex] = bluePlayers[i].transform.position.y;
-            curRedState[stateIndex] = bluePlayers[i].transform.position.y;
+            blueStates[time_step][stateIndex] = bluePlayers[i].transform.localPosition.y;
+            redStates[time_step][stateIndex] = bluePlayers[i].transform.localPosition.y;
+            curBlueState[stateIndex] = bluePlayers[i].transform.localPosition.y;
+            curRedState[stateIndex] = bluePlayers[i].transform.localPosition.y;
             stateIndex++;
-            blueStates[time_step][stateIndex] = bluePlayers[i].transform.position.z;
-            redStates[time_step][stateIndex] = bluePlayers[i].transform.position.z;
-            curBlueState[stateIndex] = bluePlayers[i].transform.position.z;
-            curRedState[stateIndex] = bluePlayers[i].transform.position.z;
+            blueStates[time_step][stateIndex] = bluePlayers[i].transform.localPosition.z;
+            redStates[time_step][stateIndex] = bluePlayers[i].transform.localPosition.z;
+            curBlueState[stateIndex] = bluePlayers[i].transform.localPosition.z;
+            curRedState[stateIndex] = bluePlayers[i].transform.localPosition.z;
             stateIndex++;
             rb = bluePlayers[i].GetComponent<Rigidbody>();
             blueStates[time_step][stateIndex] = rb.velocity.x;
@@ -144,20 +169,20 @@ public class Experience {
             curBlueState[stateIndex] = rb.velocity.z;
             curRedState[stateIndex] = rb.velocity.z;
             stateIndex++;
-            blueStates[time_step][stateIndex] = redPlayers[i].transform.position.x;
-            redStates[time_step][stateIndex] = redPlayers[i].transform.position.x;
-            curBlueState[stateIndex] = redPlayers[i].transform.position.x;
-            curRedState[stateIndex] = redPlayers[i].transform.position.x;
+            blueStates[time_step][stateIndex] = redPlayers[i].transform.localPosition.x;
+            redStates[time_step][stateIndex] = redPlayers[i].transform.localPosition.x;
+            curBlueState[stateIndex] = redPlayers[i].transform.localPosition.x;
+            curRedState[stateIndex] = redPlayers[i].transform.localPosition.x;
             stateIndex++;
-            blueStates[time_step][stateIndex] = redPlayers[i].transform.position.y;
-            redStates[time_step][stateIndex] = redPlayers[i].transform.position.y;
-            curBlueState[stateIndex] = redPlayers[i].transform.position.y;
-            curRedState[stateIndex] = redPlayers[i].transform.position.y;
+            blueStates[time_step][stateIndex] = redPlayers[i].transform.localPosition.y;
+            redStates[time_step][stateIndex] = redPlayers[i].transform.localPosition.y;
+            curBlueState[stateIndex] = redPlayers[i].transform.localPosition.y;
+            curRedState[stateIndex] = redPlayers[i].transform.localPosition.y;
             stateIndex++;
-            blueStates[time_step][stateIndex] = redPlayers[i].transform.position.z;
-            redStates[time_step][stateIndex] = redPlayers[i].transform.position.z;
-            curBlueState[stateIndex] = redPlayers[i].transform.position.z;
-            curRedState[stateIndex] = redPlayers[i].transform.position.z;
+            blueStates[time_step][stateIndex] = redPlayers[i].transform.localPosition.z;
+            redStates[time_step][stateIndex] = redPlayers[i].transform.localPosition.z;
+            curBlueState[stateIndex] = redPlayers[i].transform.localPosition.z;
+            curRedState[stateIndex] = redPlayers[i].transform.localPosition.z;
             stateIndex++;
             rb = redPlayers[i].GetComponent<Rigidbody>();
             blueStates[time_step][stateIndex] = rb.velocity.x;
@@ -176,20 +201,20 @@ public class Experience {
             curRedState[stateIndex] = rb.velocity.z;
             stateIndex++;
         }
-        blueStates[time_step][stateIndex] = ball.transform.position.x;
-        redStates[time_step][stateIndex] = ball.transform.position.x;
-        curBlueState[stateIndex] = ball.transform.position.x;
-        curRedState[stateIndex] = ball.transform.position.x;
+        blueStates[time_step][stateIndex] = ball.transform.localPosition.x;
+        redStates[time_step][stateIndex] = ball.transform.localPosition.x;
+        curBlueState[stateIndex] = ball.transform.localPosition.x;
+        curRedState[stateIndex] = ball.transform.localPosition.x;
         stateIndex++;
-        blueStates[time_step][stateIndex] = ball.transform.position.y;
-        redStates[time_step][stateIndex] = ball.transform.position.y;
-        curBlueState[stateIndex] = ball.transform.position.y;
-        curRedState[stateIndex] = ball.transform.position.y;
+        blueStates[time_step][stateIndex] = ball.transform.localPosition.y;
+        redStates[time_step][stateIndex] = ball.transform.localPosition.y;
+        curBlueState[stateIndex] = ball.transform.localPosition.y;
+        curRedState[stateIndex] = ball.transform.localPosition.y;
         stateIndex++;
-        blueStates[time_step][stateIndex] = ball.transform.position.z;
-        redStates[time_step][stateIndex] = ball.transform.position.z;
-        curBlueState[stateIndex] = ball.transform.position.z;
-        curRedState[stateIndex] = ball.transform.position.z;
+        blueStates[time_step][stateIndex] = ball.transform.localPosition.z;
+        redStates[time_step][stateIndex] = ball.transform.localPosition.z;
+        curBlueState[stateIndex] = ball.transform.localPosition.z;
+        curRedState[stateIndex] = ball.transform.localPosition.z;
         stateIndex++;
         rb = ball.GetComponent<Rigidbody>();
         blueStates[time_step][stateIndex] = rb.velocity.x;
@@ -211,14 +236,14 @@ public class Experience {
         //Blue Team Specific State Setup
         //Friendly goal (!!! z is width and y is height !!!)
         mesh = blueGoal.GetComponent<MeshRenderer>();
-        blueStates[time_step][stateIndex] = blueGoal.transform.position.x;
-        curBlueState[stateIndex] = blueGoal.transform.position.x;
+        blueStates[time_step][stateIndex] = blueGoal.transform.localPosition.x;
+        curBlueState[stateIndex] = blueGoal.transform.localPosition.x;
         stateIndex++;
-        blueStates[time_step][stateIndex] = blueGoal.transform.position.y;
-        curBlueState[stateIndex] = blueGoal.transform.position.y;
+        blueStates[time_step][stateIndex] = blueGoal.transform.localPosition.y;
+        curBlueState[stateIndex] = blueGoal.transform.localPosition.y;
         stateIndex++;
-        blueStates[time_step][stateIndex] = blueGoal.transform.position.z;
-        curBlueState[stateIndex] = blueGoal.transform.position.z;
+        blueStates[time_step][stateIndex] = blueGoal.transform.localPosition.z;
+        curBlueState[stateIndex] = blueGoal.transform.localPosition.z;
         stateIndex++;
         blueStates[time_step][stateIndex] = mesh.bounds.size.z;
         curBlueState[stateIndex] = mesh.bounds.size.z;
@@ -229,14 +254,14 @@ public class Experience {
 
         //Enemy goal (!!! z is width and y is height !!!)
         mesh = redGoal.GetComponent<MeshRenderer>();
-        blueStates[time_step][stateIndex] = redGoal.transform.position.x;
-        curBlueState[stateIndex] = redGoal.transform.position.x;
+        blueStates[time_step][stateIndex] = redGoal.transform.localPosition.x;
+        curBlueState[stateIndex] = redGoal.transform.localPosition.x;
         stateIndex++;
-        blueStates[time_step][stateIndex] = redGoal.transform.position.y;
-        curBlueState[stateIndex] = redGoal.transform.position.y;
+        blueStates[time_step][stateIndex] = redGoal.transform.localPosition.y;
+        curBlueState[stateIndex] = redGoal.transform.localPosition.y;
         stateIndex++;
-        blueStates[time_step][stateIndex] = redGoal.transform.position.z;
-        curBlueState[stateIndex] = redGoal.transform.position.z;
+        blueStates[time_step][stateIndex] = redGoal.transform.localPosition.z;
+        curBlueState[stateIndex] = redGoal.transform.localPosition.z;
         stateIndex++;
         blueStates[time_step][stateIndex] = mesh.bounds.size.z;
         curBlueState[stateIndex] = mesh.bounds.size.z;
@@ -251,14 +276,14 @@ public class Experience {
         //Red Team Specific State Setup
         //Friendly goal (!!! z is width and y is height !!!)
         mesh = redGoal.GetComponent<MeshRenderer>();
-        redStates[time_step][stateIndex] = redGoal.transform.position.x;
-        curRedState[stateIndex] = redGoal.transform.position.x;
+        redStates[time_step][stateIndex] = redGoal.transform.localPosition.x;
+        curRedState[stateIndex] = redGoal.transform.localPosition.x;
         stateIndex++;
-        redStates[time_step][stateIndex] = redGoal.transform.position.y;
-        curRedState[stateIndex] = redGoal.transform.position.y;
+        redStates[time_step][stateIndex] = redGoal.transform.localPosition.y;
+        curRedState[stateIndex] = redGoal.transform.localPosition.y;
         stateIndex++;
-        redStates[time_step][stateIndex] = redGoal.transform.position.z;
-        curRedState[stateIndex] = redGoal.transform.position.z;
+        redStates[time_step][stateIndex] = redGoal.transform.localPosition.z;
+        curRedState[stateIndex] = redGoal.transform.localPosition.z;
         stateIndex++;
         redStates[time_step][stateIndex] = mesh.bounds.size.z;
         curRedState[stateIndex] = mesh.bounds.size.z;
@@ -269,14 +294,14 @@ public class Experience {
 
         //Enemy goal (!!! z is width and y is height !!!)
         mesh = blueGoal.GetComponent<MeshRenderer>();
-        redStates[time_step][stateIndex] = blueGoal.transform.position.x;
-        curRedState[stateIndex] = blueGoal.transform.position.x;
+        redStates[time_step][stateIndex] = blueGoal.transform.localPosition.x;
+        curRedState[stateIndex] = blueGoal.transform.localPosition.x;
         stateIndex++;
-        redStates[time_step][stateIndex] = blueGoal.transform.position.y;
-        curRedState[stateIndex] = blueGoal.transform.position.y;
+        redStates[time_step][stateIndex] = blueGoal.transform.localPosition.y;
+        curRedState[stateIndex] = blueGoal.transform.localPosition.y;
         stateIndex++;
-        redStates[time_step][stateIndex] = blueGoal.transform.position.z;
-        curRedState[stateIndex] = blueGoal.transform.position.z;
+        redStates[time_step][stateIndex] = blueGoal.transform.localPosition.z;
+        curRedState[stateIndex] = blueGoal.transform.localPosition.z;
         stateIndex++;
         redStates[time_step][stateIndex] = mesh.bounds.size.z;
         curRedState[stateIndex] = mesh.bounds.size.z;
@@ -286,20 +311,17 @@ public class Experience {
         stateIndex++;
         NativeList<JobHandle> forwardJobHandles = new NativeList<JobHandle>(GameManager.TEAM_SIZE * 4, Allocator.Persistent);
         NativeArray<double>[,] actionDists = new NativeArray<double>[GameManager.TEAM_SIZE, 2];
-        int id = 0;
         for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
             actionDists[i, 0] = new NativeArray<double>(GameManager.NUM_ACTIONS, Allocator.Persistent);
             actionDists[i, 1] = new NativeArray<double>(GameManager.NUM_ACTIONS, Allocator.Persistent);
 
             //Forward Step on Blue Agents + Critics
-            forwardJobHandles.Add(blueAgents[i].Forward(curBlueState, 1, ref actionDists[i, 0], id));
-            forwardJobHandles.Add(blueCritics[i].Forward(curBlueState, 1, ref blueValues[time_step, i], id));
-            id++;
+            forwardJobHandles.Add(blueAgents[i].Forward(curBlueState, 1, actionDists[i, 0], 0));
+            forwardJobHandles.Add(blueCritics[i].Forward(curBlueState, 1, blueValues[time_step, i], 0));
 
             //Forward Step on Red Agents + Critics
-            forwardJobHandles.Add(redAgents[i].Forward(curRedState, 1, ref actionDists[i, 1], id));
-            forwardJobHandles.Add(redCritics[i].Forward(curRedState, 1, ref redValues[time_step, i], id));
-            id++;
+            forwardJobHandles.Add(redAgents[i].Forward(curRedState, 1, actionDists[i, 1], 1));
+            forwardJobHandles.Add(redCritics[i].Forward(curRedState, 1, redValues[time_step, i], 1));
         }
         JobHandle.CompleteAll(forwardJobHandles);
         forwardJobHandles.Dispose();
@@ -310,8 +332,8 @@ public class Experience {
         for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
             //Blue Team Actions
             for (int j = 0; j < GameManager.NUM_ACTIONS; j++) {
-                blueActions[time_step, i][j] = GaussianDistribution.NextGaussian(actionDists[i, 0][j], blueAgents[i].log_std[j]);
-                blueLog_Probs[time_step, i][j] = GaussianDistribution.log_prob(blueActions[time_step, i][j], actionDists[i, 0][j], blueAgents[i].log_std[j]);
+                blueActions[time_step, i][j] = GaussianDistribution.NextGaussian(actionDists[i, 0][j], blueAgents[i].std[j]);
+                blueLog_Probs[time_step, i][j] = GaussianDistribution.log_prob(blueActions[time_step, i][j], actionDists[i, 0][j], blueAgents[i].std[j]);
             }
             rb = bluePlayers[i].GetComponent<Rigidbody>();
             Vector3d force = Vector3d.Normalize(new Vector3d(blueActions[time_step, i][0], 0, blueActions[time_step, i][1]));
@@ -320,8 +342,8 @@ public class Experience {
 
             //Red Team Actions
             for (int j = 0; j < GameManager.NUM_ACTIONS; j++) {
-                redActions[time_step, i][j] = GaussianDistribution.NextGaussian(actionDists[i, 1][j], redAgents[i].log_std[j]);
-                redLog_Probs[time_step, i][j] = GaussianDistribution.log_prob(redActions[time_step, i][j], actionDists[i, 1][j], redAgents[i].log_std[j]);
+                redActions[time_step, i][j] = GaussianDistribution.NextGaussian(actionDists[i, 1][j], redAgents[i].std[j]);
+                redLog_Probs[time_step, i][j] = GaussianDistribution.log_prob(redActions[time_step, i][j], actionDists[i, 1][j], redAgents[i].std[j]);
             }
             rb = redPlayers[i].GetComponent<Rigidbody>();
             force = Vector3d.Normalize(new Vector3d(redActions[time_step, i][0], 0, redActions[time_step, i][1]));
@@ -335,6 +357,9 @@ public class Experience {
     }
 
     public void getNextValues(NeuralNetwork[] blueCritics, NeuralNetwork[] redCritics) {
+        //Average total blue and red reward for evaluation
+        avgBlueReward /= GameManager.EPISODE_LENGTH;
+        avgRedReward /= GameManager.EPISODE_LENGTH;
         //Common State information for both blue and red
         NativeArray<double> curBlueState = new NativeArray<double>(GameManager.STATE_SIZE, Allocator.Persistent);
         NativeArray<double> curRedState = new NativeArray<double>(GameManager.STATE_SIZE, Allocator.Persistent);
@@ -342,14 +367,14 @@ public class Experience {
         MeshRenderer mesh;
         int stateIndex = 0;
         for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
-            curBlueState[stateIndex] = bluePlayers[i].transform.position.x;
-            curRedState[stateIndex] = bluePlayers[i].transform.position.x;
+            curBlueState[stateIndex] = bluePlayers[i].transform.localPosition.x;
+            curRedState[stateIndex] = bluePlayers[i].transform.localPosition.x;
             stateIndex++;
-            curBlueState[stateIndex] = bluePlayers[i].transform.position.y;
-            curRedState[stateIndex] = bluePlayers[i].transform.position.y;
+            curBlueState[stateIndex] = bluePlayers[i].transform.localPosition.y;
+            curRedState[stateIndex] = bluePlayers[i].transform.localPosition.y;
             stateIndex++;
-            curBlueState[stateIndex] = bluePlayers[i].transform.position.z;
-            curRedState[stateIndex] = bluePlayers[i].transform.position.z;
+            curBlueState[stateIndex] = bluePlayers[i].transform.localPosition.z;
+            curRedState[stateIndex] = bluePlayers[i].transform.localPosition.z;
             stateIndex++;
             rb = bluePlayers[i].GetComponent<Rigidbody>();
             curBlueState[stateIndex] = rb.velocity.x;
@@ -361,14 +386,14 @@ public class Experience {
             curBlueState[stateIndex] = rb.velocity.z;
             curRedState[stateIndex] = rb.velocity.z;
             stateIndex++;
-            curBlueState[stateIndex] = redPlayers[i].transform.position.x;
-            curRedState[stateIndex] = redPlayers[i].transform.position.x;
+            curBlueState[stateIndex] = redPlayers[i].transform.localPosition.x;
+            curRedState[stateIndex] = redPlayers[i].transform.localPosition.x;
             stateIndex++;
-            curBlueState[stateIndex] = redPlayers[i].transform.position.y;
-            curRedState[stateIndex] = redPlayers[i].transform.position.y;
+            curBlueState[stateIndex] = redPlayers[i].transform.localPosition.y;
+            curRedState[stateIndex] = redPlayers[i].transform.localPosition.y;
             stateIndex++;
-            curBlueState[stateIndex] = redPlayers[i].transform.position.z;
-            curRedState[stateIndex] = redPlayers[i].transform.position.z;
+            curBlueState[stateIndex] = redPlayers[i].transform.localPosition.z;
+            curRedState[stateIndex] = redPlayers[i].transform.localPosition.z;
             stateIndex++;
             rb = redPlayers[i].GetComponent<Rigidbody>();
             curBlueState[stateIndex] = rb.velocity.x;
@@ -381,14 +406,14 @@ public class Experience {
             curRedState[stateIndex] = rb.velocity.z;
             stateIndex++;
         }
-        curBlueState[stateIndex] = ball.transform.position.x;
-        curRedState[stateIndex] = ball.transform.position.x;
+        curBlueState[stateIndex] = ball.transform.localPosition.x;
+        curRedState[stateIndex] = ball.transform.localPosition.x;
         stateIndex++;
-        curBlueState[stateIndex] = ball.transform.position.y;
-        curRedState[stateIndex] = ball.transform.position.y;
+        curBlueState[stateIndex] = ball.transform.localPosition.y;
+        curRedState[stateIndex] = ball.transform.localPosition.y;
         stateIndex++;
-        curBlueState[stateIndex] = ball.transform.position.z;
-        curRedState[stateIndex] = ball.transform.position.z;
+        curBlueState[stateIndex] = ball.transform.localPosition.z;
+        curRedState[stateIndex] = ball.transform.localPosition.z;
         stateIndex++;
         rb = ball.GetComponent<Rigidbody>();
         curBlueState[stateIndex] = rb.velocity.x;
@@ -404,11 +429,11 @@ public class Experience {
         //Blue Team Specific State Setup
         //Friendly goal (!!! z is width and y is height !!!)
         mesh = blueGoal.GetComponent<MeshRenderer>();
-        curBlueState[stateIndex] = blueGoal.transform.position.x;
+        curBlueState[stateIndex] = blueGoal.transform.localPosition.x;
         stateIndex++;
-        curBlueState[stateIndex] = blueGoal.transform.position.y;
+        curBlueState[stateIndex] = blueGoal.transform.localPosition.y;
         stateIndex++;
-        curBlueState[stateIndex] = blueGoal.transform.position.z;
+        curBlueState[stateIndex] = blueGoal.transform.localPosition.z;
         stateIndex++;
         curBlueState[stateIndex] = mesh.bounds.size.z;
         stateIndex++;
@@ -417,11 +442,11 @@ public class Experience {
 
         //Enemy goal (!!! z is width and y is height !!!)
         mesh = redGoal.GetComponent<MeshRenderer>();
-        curBlueState[stateIndex] = redGoal.transform.position.x;
+        curBlueState[stateIndex] = redGoal.transform.localPosition.x;
         stateIndex++;
-        curBlueState[stateIndex] = redGoal.transform.position.y;
+        curBlueState[stateIndex] = redGoal.transform.localPosition.y;
         stateIndex++;
-        curBlueState[stateIndex] = redGoal.transform.position.z;
+        curBlueState[stateIndex] = redGoal.transform.localPosition.z;
         stateIndex++;
         curBlueState[stateIndex] = mesh.bounds.size.z;
         stateIndex++;
@@ -434,11 +459,11 @@ public class Experience {
         //Red Team Specific State Setup
         //Friendly goal (!!! z is width and y is height !!!)
         mesh = redGoal.GetComponent<MeshRenderer>();
-        curRedState[stateIndex] = redGoal.transform.position.x;
+        curRedState[stateIndex] = redGoal.transform.localPosition.x;
         stateIndex++;
-        curRedState[stateIndex] = redGoal.transform.position.y;
+        curRedState[stateIndex] = redGoal.transform.localPosition.y;
         stateIndex++;
-        curRedState[stateIndex] = redGoal.transform.position.z;
+        curRedState[stateIndex] = redGoal.transform.localPosition.z;
         stateIndex++;
         curRedState[stateIndex] = mesh.bounds.size.z;
         stateIndex++;
@@ -447,11 +472,11 @@ public class Experience {
 
         //Enemy goal (!!! z is width and y is height !!!)
         mesh = blueGoal.GetComponent<MeshRenderer>();
-        curRedState[stateIndex] = blueGoal.transform.position.x;
+        curRedState[stateIndex] = blueGoal.transform.localPosition.x;
         stateIndex++;
-        curRedState[stateIndex] = blueGoal.transform.position.y;
+        curRedState[stateIndex] = blueGoal.transform.localPosition.y;
         stateIndex++;
-        curRedState[stateIndex] = blueGoal.transform.position.z;
+        curRedState[stateIndex] = blueGoal.transform.localPosition.z;
         stateIndex++;
         curRedState[stateIndex] = mesh.bounds.size.z;
         stateIndex++;
@@ -460,12 +485,9 @@ public class Experience {
 
         //Get next values
         NativeList<JobHandle> forwardJobHandles = new NativeList<JobHandle>(GameManager.TEAM_SIZE * 2, Allocator.Persistent);
-        int id = 0;
         for (int i = 0; i  < GameManager.TEAM_SIZE; i++) {
-            forwardJobHandles.Add(blueCritics[i].Forward(curBlueState, 1, ref blueNextVals[i], id));
-            id++;
-            forwardJobHandles.Add(redCritics[i].Forward(curRedState, 1, ref redNextVals[i], id));
-            id++;
+            forwardJobHandles.Add(blueCritics[i].Forward(curBlueState, 1, blueNextVals[i], 0));
+            forwardJobHandles.Add(redCritics[i].Forward(curRedState, 1, redNextVals[i], 1));
             //Stop agents due to end of episode
             rb = bluePlayers[i].GetComponent<Rigidbody>();
             rb.velocity = new Vector3(0, 0, 0);
@@ -478,8 +500,7 @@ public class Experience {
         curRedState.Dispose();
     }
 
-
-
+    [BurstCompile]
     public void CalculateGAE() {
         for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
             //Gather Blue and Red Agent i's rewards, values, next vals
@@ -510,6 +531,7 @@ public class Experience {
                 TEAM_SIZE = GameManager.TEAM_SIZE,
                 returns = blueReturns,
                 advantages = blueAdvantages,
+                EPSILON = GameManager.EPSILON
             };
 
             CalculateGAEJob redGAECalcJob = new CalculateGAEJob {
@@ -524,6 +546,7 @@ public class Experience {
                 TEAM_SIZE = GameManager.TEAM_SIZE,
                 returns = redReturns,
                 advantages = redAdvantages,
+                EPSILON = GameManager.EPSILON
             };
             blueRedGAEJobs[0] = blueGAECalcJob.Schedule();
             blueRedGAEJobs[1] = redGAECalcJob.Schedule();
@@ -540,38 +563,78 @@ public class Experience {
     
     [BurstCompile]
     public double blueReward() {
+        if (blueGotGoalReward) {
+            //Avg Distance of players to ball
+            double totDist = 0;
+            for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
+                double xDiff = math.abs(ball.transform.localPosition.x-bluePlayers[i].transform.localPosition.x);
+                totDist += 1 - ((2*xDiff)/FIELD_LENGTH);
+            }
+            totDist /= GameManager.TEAM_SIZE;
+            if (totDist < GameManager.EPSILON) {
+                totDist = 0;
+            }
+            return totDist;
+            //return 0.5-(math.abs(ball.transform.localPosition.x-redGoal.transform.localPosition.x)/FIELD_LENGTH);
+        }
         if (!redWon && !blueWon) {
             //Avg Distance of players to ball
             double totDist = 0;
             for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
-                totDist += math.abs(ball.transform.position.x-bluePlayers[i].transform.position.x)/GameManager.FIELD_LENGTH;
+                double xDiff = math.abs(ball.transform.localPosition.x-bluePlayers[i].transform.localPosition.x);
+                totDist += 1 - ((2*xDiff)/FIELD_LENGTH);
             }
             totDist /= GameManager.TEAM_SIZE;
+            if (totDist < GameManager.EPSILON) {
+                totDist = 0;
+            }
             return totDist;
             //Distance of ball to goal
-            //return 1-(math.abs(ball.transform.position.x-redGoal.transform.position.x)/GameManager.FIELD_LENGTH);
+            //return 0.5-(math.abs(ball.transform.localPosition.x-redGoal.transform.localPosition.x)/FIELD_LENGTH);
         } else if (redWon) {
+            blueGotGoalReward = true;
             return -1000;
         } else {
+            blueGotGoalReward = true;
             return 1000;
         }
     }
 
     [BurstCompile]
     public double redReward() {
+        if (redGotGoalReward) {
+            //Avg Distance of players to ball
+            double totDist = 0;
+            for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
+                double xDiff = math.abs(ball.transform.localPosition.x-redPlayers[i].transform.localPosition.x);
+                totDist += 1 - ((2*xDiff)/FIELD_LENGTH);
+            }
+            totDist /= GameManager.TEAM_SIZE;
+            if (totDist < GameManager.EPSILON) {
+                totDist = 0;
+            }
+            return totDist;
+            //return 0.5-(math.abs(ball.transform.localPosition.x-blueGoal.transform.localPosition.x)/FIELD_LENGTH);
+        }
         if (!redWon && !blueWon) {
             //Avg Distance of players to ball
             double totDist = 0;
             for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
-                totDist += math.abs(ball.transform.position.x-redPlayers[i].transform.position.x)/GameManager.FIELD_LENGTH;
+                double xDiff = math.abs(ball.transform.localPosition.x-redPlayers[i].transform.localPosition.x);
+                totDist += 1 - ((2*xDiff)/FIELD_LENGTH);
             }
             totDist /= GameManager.TEAM_SIZE;
+            if (totDist < GameManager.EPSILON) {
+                totDist = 0;
+            }
             return totDist;
             //Distance of ball to goal
-            //return 1-(math.abs(ball.transform.position.x-blueGoal.transform.position.x)/GameManager.FIELD_LENGTH);
+            //return 0.5-(math.abs(ball.transform.localPosition.x-blueGoal.transform.localPosition.x)/FIELD_LENGTH);
         } else if (blueWon) {
+            redGotGoalReward = true;
             return -1000;
         } else {
+            redGotGoalReward = true;
             return 1000;
         }
     }
@@ -610,6 +673,12 @@ public class Experience {
     public void resetEnv() {
         blueWon = false;
         redWon = false;
+        resetlocalPositions();
+        time_step = 0;
+    }
+
+    [BurstCompile]
+    void resetlocalPositions() {
         ball.transform.position = ballOriginalPos;
         for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
             bluePlayers[i].transform.position = blueOriginalPos[i];
@@ -617,6 +686,5 @@ public class Experience {
         }
         Rigidbody ballRb = ball.GetComponent<Rigidbody>();
         ballRb.velocity = new Vector3(0f, 0f, 0f);
-        time_step = 0;
     }
 }

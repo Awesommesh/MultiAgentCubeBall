@@ -12,18 +12,18 @@ public class GameManager : MonoBehaviour
     public int NUM_ENV = 1;
     public static double GAE_LAMBDA = 0.95;
     public static double GAMMA = 0.99;
-    public static double ALPHA = 0.001;
+    public static double ALPHA = 0.0005;
     public static double BETA1 = 0.9;
     public static double BETA2 = 0.999;
+    [ReadOnly]
     public static double EPSILON = 0.00000001;
-    public static int EPISODE_LENGTH = 256;
+    public static int EPISODE_LENGTH = 128;
     public int BATCH_SIZE;
     public int MINI_BATCH_SIZE = 16;
     public int NUM_MINI_BATCHES;
     public int ADAM_BATCH_SIZE = 32;
     public int NUM_PPO_EPOCHS = 10;
     public static int TEAM_SIZE = 5;
-    public static double FIELD_LENGTH = 90;
     public static double MAX_SPEED = 25;
     public int numLayers;
     public static int STATE_SIZE = 76;
@@ -38,8 +38,8 @@ public class GameManager : MonoBehaviour
     public NeuralNetwork[] agents;
     public NeuralNetwork[] critics;
     public NativeArray<int>[] layerShapes;
-    public double[] actorLog_Std;
-    public double[] criticLog_Std;
+    public double[] actorStd;
+    public double[] criticStd;
     public int episode_iteration = 0;
     public GameObject gameEnv;
 
@@ -133,7 +133,7 @@ public class GameManager : MonoBehaviour
                 numEnvCreated++;
             }
         }
-
+        
         //Initialize NN randomly with correct architecture etc.
         layerShapes = new NativeArray<int>[numLayers];
         for (int i = 0; i < numLayers; i++) {
@@ -156,12 +156,12 @@ public class GameManager : MonoBehaviour
         layerShapes[4][0] = 3;
         layerShapes[4][1] = 171+1;
 
-        actorLog_Std = new double[NUM_ACTIONS];
+        actorStd = new double[NUM_ACTIONS];
         for (int i = 0; i < NUM_ACTIONS; i++) {
-            actorLog_Std[i] = 1;
+            actorStd[i] = 1;
         }
-        criticLog_Std = new double[1];
-        criticLog_Std[0] = 1;
+        criticStd = new double[1];
+        criticStd[0] = 1;
         agents = new NeuralNetwork[TEAM_SIZE];
         critics = new NeuralNetwork[TEAM_SIZE];
 
@@ -172,7 +172,7 @@ public class GameManager : MonoBehaviour
         activationList[3] = ActivationType.ReLU;
         activationList[4] = ActivationType.None;
         
-        for (int i = 0; i < agents.Length; i++) {
+        for (int i = 0; i < TEAM_SIZE; i++) {
             NativeArray<double>[] weights = new NativeArray<double>[numLayers];
             NativeArray<int>[] curShape = new NativeArray<int>[numLayers];
             for (int j = 0; j < numLayers; j++) {
@@ -181,8 +181,8 @@ public class GameManager : MonoBehaviour
                 curShape[j][1] = layerShapes[j][1];
                 weights[j] = NativeNDOps.HeInitializedNDArray(layerShapes[j], layerShapes[j][1], Allocator.Persistent);
             }
-            agents[i] = new NeuralNetwork(numLayers, activationList, ref weights, ref curShape, STATE_SIZE, NUM_ACTIONS, 
-                actorLog_Std, ALPHA, BETA1, BETA2, EPSILON, ADAM_BATCH_SIZE, BATCH_SIZE, MINI_BATCH_SIZE);
+            agents[i] = new NeuralNetwork(numLayers, activationList, weights, curShape, STATE_SIZE, NUM_ACTIONS, 
+                actorStd, ALPHA, BETA1, BETA2, EPSILON, ADAM_BATCH_SIZE, 2, MINI_BATCH_SIZE);
             weights = new NativeArray<double>[numLayers];
             curShape = new NativeArray<int>[numLayers];
             for (int j = 0; j < numLayers; j++) {
@@ -201,8 +201,8 @@ public class GameManager : MonoBehaviour
             activationList[2] = ActivationType.ReLU;
             activationList[3] = ActivationType.ReLU;
             activationList[4] = ActivationType.Sigmoid;
-            critics[i] = new NeuralNetwork(numLayers, activationList, ref weights, ref curShape, STATE_SIZE, 1, 
-                criticLog_Std, ALPHA, BETA1, BETA2, EPSILON, ADAM_BATCH_SIZE, BATCH_SIZE, MINI_BATCH_SIZE);
+            critics[i] = new NeuralNetwork(numLayers, activationList, weights, curShape, STATE_SIZE, 1, 
+                criticStd, ALPHA, BETA1, BETA2, EPSILON, ADAM_BATCH_SIZE, 2, MINI_BATCH_SIZE);
         }
         for (int i = 0; i < numLayers; i++) {
             layerShapes[i].Dispose();
@@ -307,26 +307,26 @@ public class GameManager : MonoBehaviour
                     agents[i].resetOptimizerWeights();
                     critics[i].resetOptimizerWeights();
                 }
+                for (int i = 0; i < NUM_ENV; i++) {
+                    Debug.Log("Environment " + i + " blue team average rewards: " + envs[i].avgBlueReward);
+                    Debug.Log("Environment " + i + " red team average rewards: " + envs[i].avgRedReward);
+                }
                 actor_loss /= (MINI_BATCH_SIZE*NUM_MINI_BATCHES*NUM_ACTIONS*TEAM_SIZE*NUM_PPO_EPOCHS);
                 critic_loss /= (MINI_BATCH_SIZE*NUM_MINI_BATCHES*TEAM_SIZE*NUM_PPO_EPOCHS);
-                total_entropy /= (MINI_BATCH_SIZE*NUM_MINI_BATCHES*NUM_PPO_EPOCHS);
+                total_entropy /= (MINI_BATCH_SIZE*NUM_MINI_BATCHES*TEAM_SIZE*NUM_PPO_EPOCHS);
                 total_loss = CRITIC_DISCOUNT * critic_loss + actor_loss - ENTROPY_BETA * total_entropy;
-                Debug.Log("Actor Loss: " + actor_loss + "\nCritic Loss: " + critic_loss + "\nTotal Loss: " + total_loss);
-                
+                Debug.Log("Actor Loss: " + actor_loss 
+                    + "\nCritic Loss: " + critic_loss
+                    + "\nTotal Entropy: " + total_entropy);
+                Debug.Log("Total Loss: " + total_loss);                
                 for (int i = 0; i < NUM_ENV; i++) {
                     //Reset environment for next run;
                     envs[i].resetEnv();
                 }
-                //Need to reset agents adam optimizers?;*/
-                /*for (int i = 0; i < TEAM_SIZE; i++) {
-                    agents[i].resetOptimizerWeights();
-                    critics[i].resetOptimizerWeights();
-                }*/
                 episode_iteration = 0;
             }
             Physics.Simulate(PHYSICS_STEP_SIZE);
         }
-        
     }
 
     [BurstCompile]
@@ -335,18 +335,20 @@ public class GameManager : MonoBehaviour
         for (int i = 0; i < NUM_MINI_BATCHES; i++) {
             NativeList<JobHandle> forwardJobHandles = new NativeList<JobHandle>(TEAM_SIZE*2, Allocator.Persistent);
             for (int j = 0; j < TEAM_SIZE; j++) {
-                forwardJobHandles.Add(agents[j].Forward(states[epoch, i], MINI_BATCH_SIZE, ref actionDists[j], j));
-                forwardJobHandles.Add(critics[j].Forward(states[epoch, i], MINI_BATCH_SIZE, ref stateVals[j], j));
+                forwardJobHandles.Add(agents[j].Forward(states[epoch, i], MINI_BATCH_SIZE, actionDists[j], 0));
+                forwardJobHandles.Add(critics[j].Forward(states[epoch, i], MINI_BATCH_SIZE, stateVals[j], 0));
             }
             JobHandle.CompleteAll(forwardJobHandles);
             forwardJobHandles.Dispose();
             NativeList<JobHandle> backwardAndPPOJobHandles = new NativeList<JobHandle>(TEAM_SIZE*3, Allocator.Persistent);
             NativeArray<double>[] AL = new NativeArray<double>[TEAM_SIZE];
             NativeArray<double>[] CL = new NativeArray<double>[TEAM_SIZE];
+            //NativeArray<double>[] entropyL = new NativeArray<double>[TEAM_SIZE];
             for (int j = 0; j < TEAM_SIZE; j++) {
                 total_entropy += agents[j].entropy*MINI_BATCH_SIZE;
                 AL[j] = new NativeArray<double>(1, Allocator.Persistent);
                 CL[j] = new NativeArray<double>(1, Allocator.Persistent);
+                //entropyL = new NativeArray<double>(1, Allocator.Persistent);
                 PPOUpdateJob ppoJob = new PPOUpdateJob {
                     actionDists = actionDists[j],
                     stateVal = stateVals[j],
@@ -354,7 +356,7 @@ public class GameManager : MonoBehaviour
                     old_log_probs = log_probs[epoch, i],
                     returns = returns[epoch, i],
                     advantage = advantages[epoch, i],
-                    log_stds= agents[j].log_std,
+                    stds= agents[j].std,
                     entropy = agents[j].entropy,
                     NUM_ACTIONS = NUM_ACTIONS,
                     PPO_EPILSON = PPO_EPILSON,
@@ -368,16 +370,18 @@ public class GameManager : MonoBehaviour
                 };
                 JobHandle ppoHandle = ppoJob.Schedule();
                 backwardAndPPOJobHandles.Add(ppoHandle);
-                backwardAndPPOJobHandles.Add(agents[j].Backward(actorGrads[j], MINI_BATCH_SIZE, j, ref ppoHandle));
-                backwardAndPPOJobHandles.Add(critics[j].Backward(criticGrads[j], MINI_BATCH_SIZE, j, ref ppoHandle));
+                backwardAndPPOJobHandles.Add(agents[j].Backward(actorGrads[j], MINI_BATCH_SIZE, 0, ppoHandle));
+                backwardAndPPOJobHandles.Add(critics[j].Backward(criticGrads[j], MINI_BATCH_SIZE, 0, ppoHandle));
             }
             JobHandle.CompleteAll(backwardAndPPOJobHandles);
             backwardAndPPOJobHandles.Dispose();
             for (int j = 0; j < TEAM_SIZE; j++) {
                 actor_loss += AL[j][0];
                 critic_loss += CL[j][0];
+                //total_entropy += entropyL[j][0];
                 AL[j].Dispose();
                 CL[j].Dispose();
+                //entropyL[j].Dispose();
                 agents[j].resetGrads();
                 critics[j].resetGrads();
             }
@@ -427,6 +431,7 @@ public class GameManager : MonoBehaviour
         for (int i = 0; i < NUM_ENV; i++) {
             envs[i].Dispose();
         }
+        Debug.Log("Disposed everything...");
     }
 
     void Reset() {

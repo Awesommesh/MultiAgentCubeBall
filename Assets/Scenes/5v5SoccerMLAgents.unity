@@ -200,7 +200,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 326382803}
   m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: 0, y: 30, z: 0}
+  m_LocalPosition: {x: 17.5, y: 45, z: 10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 898156936}
@@ -236,7 +236,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   MINI_BATCH_SEED: 4
-  NUM_ENV: 1
+  NUM_ENV: 4
   BATCH_SIZE: 0
   MINI_BATCH_SIZE: 128
   NUM_MINI_BATCHES: 0
@@ -244,8 +244,8 @@ MonoBehaviour:
   NUM_PPO_EPOCHS: 10
   numLayers: 5
   interval: 4
-  actorLog_Std: []
-  criticLog_Std: []
+  actorStd: []
+  criticStd: []
   episode_iteration: 0
   gameEnv: {fileID: 5599166562531727043, guid: 644466799e3e146b5ac39061b804d6b1, type: 3}
 --- !u!4 &898156936

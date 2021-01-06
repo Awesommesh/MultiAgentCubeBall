@@ -11,7 +11,7 @@ int main () {
 }
 
 extern "C" {
-    void matmul(int transA, int transB, int A_width, int A_height, int B_width, int B_height, double* A, double* B, double* output) {
+    void matmul(int transA, int transB, int A_height, int A_width, int B_height, int B_width, double* A, double* B, double* output) {
         bool tA = transA == 1;
         bool tB = transB == 1;
         int A_h = tA ? A_width  : A_height;

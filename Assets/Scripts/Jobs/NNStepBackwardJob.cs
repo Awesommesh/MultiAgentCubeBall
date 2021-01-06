@@ -39,7 +39,7 @@ public struct NNStepBackwardJob : IJob {
         
         NativeArray<double> allLayerGrads = new NativeArray<double>(layerInput.Length, Allocator.Temp);
         NativeNDOps.Dot(weights, weightsShape, 1, activationGrad, gradShape, 0, allLayerGrads);
-        NativeNDOps.CopyPartial(allLayerGrads, ref layerGrad, layerGrad.Length);
+        NativeNDOps.CopyPartial(allLayerGrads, layerGrad, layerGrad.Length);
         allLayerGrads.Dispose();
 
         //Dispose shape arrays and activation gradientsd

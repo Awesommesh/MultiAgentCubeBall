@@ -30,11 +30,11 @@ public struct NNStepForwardJob : IJob {
         inputShape.Dispose();
         if (shouldAppendOnes == 1) {
             NativeArray<double> curOuput = new NativeArray<double>(weightsShape[0]*numInputs, Allocator.Temp);
-            NativeNDOps.ActivationFunction(activation, layerOutput, ref curOuput);
-            NativeNDOps.appendOnes(ref activationOutput, curOuput, numInputs, weightsShape[0]);
+            NativeNDOps.ActivationFunction(activation, layerOutput, curOuput);
+            NativeNDOps.appendOnes(activationOutput, curOuput, numInputs, weightsShape[0]);
             curOuput.Dispose();
         } else {
-            NativeNDOps.ActivationFunction(activation, layerOutput, ref activationOutput);
+            NativeNDOps.ActivationFunction(activation, layerOutput, activationOutput);
         }
     }
 
