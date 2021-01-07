@@ -15,7 +15,6 @@ public class GameManager : MonoBehaviour
     public static double ALPHA = 0.0005;
     public static double BETA1 = 0.9;
     public static double BETA2 = 0.999;
-    [ReadOnly]
     public static double EPSILON = 0.00000001;
     public static int EPISODE_LENGTH = 128;
     public int BATCH_SIZE;
@@ -33,8 +32,8 @@ public class GameManager : MonoBehaviour
     public int interval = 4;
     public static int NUM_ACTIONS = 3;
     public static float PHYSICS_STEP_SIZE = 0.01f;
-    public const float X_Env_Increment = 36f;
-    public const float Z_Env_Increment = 18f;
+    public const float X_Env_Increment = 74f;
+    public const float Z_Env_Increment = 35f;
     public NeuralNetwork[] agents;
     public NeuralNetwork[] critics;
     public NativeArray<int>[] layerShapes;
@@ -44,11 +43,16 @@ public class GameManager : MonoBehaviour
     public GameObject gameEnv;
 
     //PPO Experience Accumulation
-    private NativeArray<double>[,] states;
-    private NativeArray<double>[,] actions;
-    private NativeArray<double>[,] log_probs;
-    private NativeArray<double>[,] returns;
-    private NativeArray<double>[,] advantages;
+    private NativeArray<double> batchStates;
+    private NativeArray<double> batchActions;
+    private NativeArray<double> batchLog_Probs;
+    private NativeArray<double> batchReturns;
+    private NativeArray<double> batchAdvantages;
+    private NativeArray<double>[] states;
+    private NativeArray<double>[] actions;
+    private NativeArray<double>[] log_probs;
+    private NativeArray<double>[] returns;
+    private NativeArray<double>[] advantages;
 
     //PPO Update Intermediates
     NativeArray<double>[] actionDists = new NativeArray<double>[TEAM_SIZE];
@@ -66,27 +70,38 @@ public class GameManager : MonoBehaviour
     double total_loss = 0;
     double total_entropy = 0;
 
+    Unity.Mathematics.Random randSeed;
+
     [BurstCompile]
     void Awake() {
         Physics.autoSimulation = false;
         BATCH_SIZE = EPISODE_LENGTH * NUM_ENV * TEAM_SIZE * 2;
         NUM_MINI_BATCHES = BATCH_SIZE / MINI_BATCH_SIZE;
         minibatches = new NativeArray<int>[NUM_PPO_EPOCHS];
+        int trueBatchSize = NUM_MINI_BATCHES*MINI_BATCH_SIZE;
+        randSeed = new Unity.Mathematics.Random(MINI_BATCH_SEED);
         
-        states = new NativeArray<double>[NUM_PPO_EPOCHS, NUM_MINI_BATCHES];
-        actions = new NativeArray<double>[NUM_PPO_EPOCHS, NUM_MINI_BATCHES];
-        log_probs = new NativeArray<double>[NUM_PPO_EPOCHS, NUM_MINI_BATCHES];
-        returns = new NativeArray<double>[NUM_PPO_EPOCHS, NUM_MINI_BATCHES];
-        advantages = new NativeArray<double>[NUM_PPO_EPOCHS, NUM_MINI_BATCHES];
+        states = new NativeArray<double>[NUM_MINI_BATCHES];
+        actions = new NativeArray<double>[NUM_MINI_BATCHES];
+        log_probs = new NativeArray<double>[NUM_MINI_BATCHES];
+        returns = new NativeArray<double>[NUM_MINI_BATCHES];
+        advantages = new NativeArray<double>[NUM_MINI_BATCHES];
+        batchStates = new NativeArray<double>(trueBatchSize*STATE_SIZE, Allocator.Persistent);
+        batchActions= new NativeArray<double>(trueBatchSize*NUM_ACTIONS, Allocator.Persistent);
+        batchLog_Probs = new NativeArray<double>(trueBatchSize*NUM_ACTIONS, Allocator.Persistent);
+        batchReturns = new NativeArray<double>(trueBatchSize, Allocator.Persistent);
+        batchAdvantages = new NativeArray<double>(trueBatchSize, Allocator.Persistent);
+
+        for (int i = 0; i < NUM_MINI_BATCHES; i++) {
+            states[i] = new NativeArray<double>(MINI_BATCH_SIZE*STATE_SIZE, Allocator.Persistent);
+            actions[i] = new NativeArray<double>(MINI_BATCH_SIZE*NUM_ACTIONS, Allocator.Persistent);
+            log_probs[i] = new NativeArray<double>(MINI_BATCH_SIZE*NUM_ACTIONS, Allocator.Persistent);
+            returns[i] = new NativeArray<double>(MINI_BATCH_SIZE, Allocator.Persistent);
+            advantages[i] = new NativeArray<double>(MINI_BATCH_SIZE, Allocator.Persistent);
+        }
+
         for (int i = 0; i < NUM_PPO_EPOCHS; i++) {
-            for (int j = 0; j < NUM_MINI_BATCHES; j++) {
-                states[i, j] = new NativeArray<double>(MINI_BATCH_SIZE*STATE_SIZE, Allocator.Persistent);
-                actions[i, j] = new NativeArray<double>(MINI_BATCH_SIZE*NUM_ACTIONS, Allocator.Persistent);
-                log_probs[i, j] = new NativeArray<double>(MINI_BATCH_SIZE*NUM_ACTIONS, Allocator.Persistent);
-                returns[i, j] = new NativeArray<double>(MINI_BATCH_SIZE, Allocator.Persistent);
-                advantages[i, j] = new NativeArray<double>(MINI_BATCH_SIZE, Allocator.Persistent);
-            }
-            minibatches[i] = new NativeArray<int>(NUM_MINI_BATCHES*MINI_BATCH_SIZE, Allocator.Persistent);
+            minibatches[i] = new NativeArray<int>(trueBatchSize, Allocator.Persistent);
         }
 
         for (int i = 0; i < TEAM_SIZE; i++) {
@@ -114,8 +129,8 @@ public class GameManager : MonoBehaviour
                 GameObject newEnv = Instantiate(gameEnv);
                 newEnv.transform.Translate(new Vector3(i*X_Env_Increment, 0.5f, j*Z_Env_Increment), Space.World);
                 GameObject newBall = newEnv.transform.Find("Soccer Ball").gameObject;
-                GameObject newBlueGoal = newEnv.transform.Find("Field/GoalAreaBlue").gameObject;
-                GameObject newRedGoal = newEnv.transform.Find("Field/GoalAreaRed").gameObject;
+                GameObject newBlueGoal = newEnv.transform.Find("GoalBlue").gameObject;
+                GameObject newRedGoal = newEnv.transform.Find("GoalRed").gameObject;
                 GameObject[] newBlueTeam = new GameObject[TEAM_SIZE];
                 GameObject[] newRedTeam = new GameObject[TEAM_SIZE];
                 Vector3 ballOriginalPos = newBall.transform.position;
@@ -123,9 +138,9 @@ public class GameManager : MonoBehaviour
                 Vector3[] redOriginalPos = new Vector3[TEAM_SIZE];
 
                 for (int k = 0; k < TEAM_SIZE; k++) {
-                    newBlueTeam[k] = newEnv.transform.Find("BlueTeam/Blue"+(k+1)).gameObject;
+                    newBlueTeam[k] = newEnv.transform.Find("Blue"+(k+1)).gameObject;
                     blueOriginalPos[k] = newBlueTeam[k].transform.position;
-                    newRedTeam[k] = newEnv.transform.Find("RedTeam/Red"+(k+1)).gameObject;
+                    newRedTeam[k] = newEnv.transform.Find("Red"+(k+1)).gameObject;
                     redOriginalPos[k] = newRedTeam[k].transform.position;
                 }
                 envs[numEnvCreated] = new Experience(newBall, newBlueGoal, newRedGoal, newBlueTeam, newRedTeam, 
@@ -158,7 +173,7 @@ public class GameManager : MonoBehaviour
 
         actorStd = new double[NUM_ACTIONS];
         for (int i = 0; i < NUM_ACTIONS; i++) {
-            actorStd[i] = 1;
+            actorStd[i] = 5;
         }
         criticStd = new double[1];
         criticStd[0] = 1;
@@ -225,15 +240,51 @@ public class GameManager : MonoBehaviour
                 critic_loss = 0;
                 total_loss = 0;
 
+                //read from all the environments
+                int curInd = 0;
+                for (int e = 0; e < NUM_ENV; e++) {
+                    //Get final values and calc gae
+                    envs[e].getNextValues(critics, critics);
+                    envs[e].CalculateGAE();
+                    //Merge current environment data to form first set of minibatches
+                    //For each player on given env append all of their experiences in random order
+                    for (int j = 0; j < TEAM_SIZE; j++) {
+                        for (int k = 0; k < EPISODE_LENGTH; k++) {
+                            if (curInd >= NUM_MINI_BATCHES * MINI_BATCH_SIZE) {
+                                Debug.Log("NOTE: HAD TO SKIP SOME EXPERIENCE DATA BECAUSE BATCH_SIZE WASN'T DIVISIBLE BY MINI_BATCH_SIZE. Missed " 
+                                    + (BATCH_SIZE-NUM_MINI_BATCHES * MINI_BATCH_SIZE) + " transitions...");
+                                break;
+                            }
+                            int nextInd = curInd + 1;
+                            //Blue and Red Agent j's kth time_step
+                            for (int l = 0; l < STATE_SIZE; l++) {
+                                batchStates[curInd*STATE_SIZE + l] = envs[e].blueStates[k][l];
+                                batchStates[nextInd*STATE_SIZE + l] = envs[e].redStates[k][l];
+                            }
+                            for (int l = 0; l < NUM_ACTIONS; l++) {
+                                batchActions[curInd*NUM_ACTIONS + l] = envs[e].blueActions[k, j][l];
+                                batchActions[nextInd*NUM_ACTIONS + l] = envs[e].redActions[k, j][l];
+                                batchLog_Probs[curInd*NUM_ACTIONS + l] = envs[e].blueLog_Probs[k, j][l];
+                                batchLog_Probs[nextInd*NUM_ACTIONS + l] = envs[e].redLog_Probs[k, j][l];
+                            }
+                            batchReturns[curInd] = envs[e].blueReturns[k*TEAM_SIZE + j];
+                            batchReturns[nextInd] = envs[e].redReturns[k*TEAM_SIZE + j];
+                            batchAdvantages[curInd] = envs[e].blueAdvantages[k*TEAM_SIZE + j];
+                            batchAdvantages[nextInd] = envs[e].redAdvantages[k*TEAM_SIZE + j];
+                            curInd+=2;
+                        }
+                    }
+                }
+
                 //Generate set of minibatches randomly for each PPO EPOCH
                 NativeArray<JobHandle> generateMiniBatchesJobHandles = new NativeArray<JobHandle>(NUM_PPO_EPOCHS, Allocator.Persistent);
-                for (int i = 0; i < NUM_PPO_EPOCHS; i++) {
+                for (int i = 0; i < 1/*NUM_PPO_EPOCHS*/; i++) {
                     //Generate set of minibatches randomly
                     GenerateMiniBatchesJob batchJob = new GenerateMiniBatchesJob {
-                        seed = MINI_BATCH_SEED,
+                        seed = (uint)(randSeed.NextDouble()*100000+11),
                         MINI_BATCH_SIZE = MINI_BATCH_SIZE,
                         minibatches = minibatches[i],
-                        BATCH_SIZE = BATCH_SIZE
+                        BATCH_SIZE = NUM_MINI_BATCHES*MINI_BATCH_SIZE
                     };
                     generateMiniBatchesJobHandles[i] = batchJob.Schedule(NUM_MINI_BATCHES, 4);
                 }
@@ -241,8 +292,30 @@ public class GameManager : MonoBehaviour
                 generateMiniBatchesJobHandles.Dispose();
 
                 for (int i = 0; i < NUM_PPO_EPOCHS; i++) {
+                    for (int j = 0; j < NUM_MINI_BATCHES; j++) {
+                        for (int k = 0; k < MINI_BATCH_SIZE; k++) {
+                            int index = minibatches[i][j*MINI_BATCH_SIZE + k];
+                            for (int l = 0; l < STATE_SIZE; l++) {
+                                states[j][l*MINI_BATCH_SIZE + k] = batchStates[index*STATE_SIZE+l];
+                            }
+                            for (int l = 0; l < NUM_ACTIONS; l++) {
+                                actions[j][l*MINI_BATCH_SIZE + k] = batchActions[index*NUM_ACTIONS+l];
+                                log_probs[j][l*MINI_BATCH_SIZE + k] = batchLog_Probs[index*NUM_ACTIONS+l];
+                            }
+                            returns[j][k] = batchReturns[index];
+                            advantages[j][k] = batchReturns[index];
+                        }
+                    }
+                    PPO_Update(i);
+                }
+
+
+                //Old
+                /*
+                for (int i = 0; i < NUM_PPO_EPOCHS; i++) {
                     //Setup Data in mini_batches based on generate mini batches output
                     if (i == 0) { 
+                        int curInd = 0;
                         //First epoch have to read from all the environments
                         for (int e = 0; e < NUM_ENV; e++) {
                             //Get final values and calc gae
@@ -250,7 +323,6 @@ public class GameManager : MonoBehaviour
                             envs[e].CalculateGAE();
                             //Merge current environment data to form first set of minibatches
                             //For each player on given env append all of their experiences in random order
-                            int curInd = 0;
                             for (int j = 0; j < TEAM_SIZE; j++) {
                                 for (int k = 0; k < EPISODE_LENGTH; k++) {
                                     if (curInd >= NUM_MINI_BATCHES * MINI_BATCH_SIZE) {
@@ -258,26 +330,27 @@ public class GameManager : MonoBehaviour
                                             + (BATCH_SIZE-NUM_MINI_BATCHES * MINI_BATCH_SIZE) + " transitions...");
                                         break;
                                     }
-                                    int batchNo = curInd / MINI_BATCH_SIZE;
                                     int index = minibatches[i][curInd];
+                                    int batchNo = index / MINI_BATCH_SIZE;
                                     int nextIndex = minibatches[i][curInd + 1];
+                                    int nextBatchNo = nextIndex / MINI_BATCH_SIZE;
 
                                     //Blue and Red Agent j's kth time_step
                                     for (int l = 0; l < STATE_SIZE; l++) {
                                         states[i, batchNo][l*MINI_BATCH_SIZE + (index % MINI_BATCH_SIZE)] = envs[e].blueStates[k][l];
-                                        states[i, batchNo][l*MINI_BATCH_SIZE + (nextIndex % MINI_BATCH_SIZE)] = envs[e].redStates[k][l];
+                                        states[i, nextBatchNo][l*MINI_BATCH_SIZE + (nextIndex % MINI_BATCH_SIZE)] = envs[e].redStates[k][l];
                                     }
                                     for (int l = 0; l < NUM_ACTIONS; l++) {
                                         actions[i, batchNo][l*MINI_BATCH_SIZE + (index % MINI_BATCH_SIZE)] = envs[e].blueActions[k, j][l];
-                                        actions[i, batchNo][l*MINI_BATCH_SIZE + (nextIndex % MINI_BATCH_SIZE)] = envs[e].redActions[k, j][l];
+                                        actions[i, nextBatchNo][l*MINI_BATCH_SIZE + (nextIndex % MINI_BATCH_SIZE)] = envs[e].redActions[k, j][l];
                                         log_probs[i, batchNo][l*MINI_BATCH_SIZE + (index % MINI_BATCH_SIZE)] = envs[e].blueLog_Probs[k, j][l];
-                                        log_probs[i, batchNo][l*MINI_BATCH_SIZE + (nextIndex % MINI_BATCH_SIZE)] = envs[e].redLog_Probs[k, j][l];
+                                        log_probs[i, nextBatchNo][l*MINI_BATCH_SIZE + (nextIndex % MINI_BATCH_SIZE)] = envs[e].redLog_Probs[k, j][l];
                                     }
                                     
                                     returns[i, batchNo][(index % MINI_BATCH_SIZE)] = envs[e].blueReturns[k*TEAM_SIZE + j];
                                     advantages[i, batchNo][(index % MINI_BATCH_SIZE)] = envs[e].blueAdvantages[k*TEAM_SIZE + j];
-                                    returns[i, batchNo][(nextIndex % MINI_BATCH_SIZE)] = envs[e].redReturns[k*TEAM_SIZE + j];
-                                    advantages[i, batchNo][(nextIndex % MINI_BATCH_SIZE)] = envs[e].redAdvantages[k*TEAM_SIZE + j];
+                                    returns[i, nextBatchNo][(nextIndex % MINI_BATCH_SIZE)] = envs[e].redReturns[k*TEAM_SIZE + j];
+                                    advantages[i, nextBatchNo][(nextIndex % MINI_BATCH_SIZE)] = envs[e].redAdvantages[k*TEAM_SIZE + j];
                                     curInd+=2;
                                 }
                             }
@@ -286,31 +359,45 @@ public class GameManager : MonoBehaviour
                         //Select from previous epoch gathered data
                         for (int j = 0; j < NUM_MINI_BATCHES * MINI_BATCH_SIZE; j++) {
                             int index = minibatches[i][j];
-                            int curBatchNo = j / MINI_BATCH_SIZE;
-                            int prevBatchNo = index / MINI_BATCH_SIZE;
+                            int curBatchNo = index / MINI_BATCH_SIZE;
+                            int prevBatchNo = j / MINI_BATCH_SIZE;
                             for (int k = 0; k < STATE_SIZE; k++) {
-                                states[i, curBatchNo][k*MINI_BATCH_SIZE + (j % MINI_BATCH_SIZE)] = states[i-1, prevBatchNo][k*MINI_BATCH_SIZE + (index % MINI_BATCH_SIZE)];
+                                states[i, curBatchNo][k*MINI_BATCH_SIZE + (index % MINI_BATCH_SIZE)] = states[i-1, prevBatchNo][k*MINI_BATCH_SIZE + (j % MINI_BATCH_SIZE)];
                             }
                             for (int k = 0; k < NUM_ACTIONS; k++) {
-                                actions[i, curBatchNo][k*MINI_BATCH_SIZE + (j % MINI_BATCH_SIZE)] = actions[i-1, prevBatchNo][k*MINI_BATCH_SIZE + (index % MINI_BATCH_SIZE)];
-                                log_probs[i, curBatchNo][k*MINI_BATCH_SIZE + (j % MINI_BATCH_SIZE)] = log_probs[i-1, prevBatchNo][k*MINI_BATCH_SIZE + (index % MINI_BATCH_SIZE)];
+                                actions[i, curBatchNo][k*MINI_BATCH_SIZE + (index % MINI_BATCH_SIZE)] = actions[i-1, prevBatchNo][k*MINI_BATCH_SIZE + (j % MINI_BATCH_SIZE)];
+                                log_probs[i, curBatchNo][k*MINI_BATCH_SIZE + (index % MINI_BATCH_SIZE)] = log_probs[i-1, prevBatchNo][k*MINI_BATCH_SIZE + (j % MINI_BATCH_SIZE)];
                             }
-                            returns[i, curBatchNo][j % MINI_BATCH_SIZE] = returns[i-1, prevBatchNo][index % MINI_BATCH_SIZE];
-                            advantages[i, curBatchNo][j % MINI_BATCH_SIZE] = advantages[i-1, prevBatchNo][index % MINI_BATCH_SIZE];
+                            returns[i, curBatchNo][index % MINI_BATCH_SIZE] = returns[i-1, prevBatchNo][j % MINI_BATCH_SIZE];
+                            advantages[i, curBatchNo][index % MINI_BATCH_SIZE] = advantages[i-1, prevBatchNo][j % MINI_BATCH_SIZE];
                         }
                         //Dispose previous ppo_epoch data
                         //DisposePPOEpochData(i-1);
                     }
+                    if (i == 0) {
+                        for (int j = 0; j < MINI_BATCH_SIZE; j++) {
+                            Debug.Log(states[i, 0][(STATE_SIZE-1)*MINI_BATCH_SIZE + j]);
+                        }
+                    }
                     PPO_Update(i);
                 }
+                */
                 for (int i = 0; i < TEAM_SIZE; i++) {
                     agents[i].resetOptimizerWeights();
                     critics[i].resetOptimizerWeights();
                 }
+                double blueTeamsAvg = 0;
+                double redTeamsAvg = 0;
                 for (int i = 0; i < NUM_ENV; i++) {
-                    Debug.Log("Environment " + i + " blue team average rewards: " + envs[i].avgBlueReward);
-                    Debug.Log("Environment " + i + " red team average rewards: " + envs[i].avgRedReward);
+                    blueTeamsAvg += envs[i].avgBlueReward;
+                    redTeamsAvg += envs[i].avgRedReward;
+                    //Debug.Log("Environment " + i + " blue team average rewards: " + envs[i].avgBlueReward);
+                    //Debug.Log("Environment " + i + " red team average rewards: " + envs[i].avgRedReward);
                 }
+                blueTeamsAvg /= NUM_ENV;
+                redTeamsAvg /= NUM_ENV;
+                Debug.Log("Blue Teams' Average Rewards: " + blueTeamsAvg);
+                Debug.Log("Red Teams' Average Rewards: " + redTeamsAvg);
                 actor_loss /= (MINI_BATCH_SIZE*NUM_MINI_BATCHES*NUM_ACTIONS*TEAM_SIZE*NUM_PPO_EPOCHS);
                 critic_loss /= (MINI_BATCH_SIZE*NUM_MINI_BATCHES*TEAM_SIZE*NUM_PPO_EPOCHS);
                 total_entropy /= (MINI_BATCH_SIZE*NUM_MINI_BATCHES*TEAM_SIZE*NUM_PPO_EPOCHS);
@@ -335,8 +422,8 @@ public class GameManager : MonoBehaviour
         for (int i = 0; i < NUM_MINI_BATCHES; i++) {
             NativeList<JobHandle> forwardJobHandles = new NativeList<JobHandle>(TEAM_SIZE*2, Allocator.Persistent);
             for (int j = 0; j < TEAM_SIZE; j++) {
-                forwardJobHandles.Add(agents[j].Forward(states[epoch, i], MINI_BATCH_SIZE, actionDists[j], 0));
-                forwardJobHandles.Add(critics[j].Forward(states[epoch, i], MINI_BATCH_SIZE, stateVals[j], 0));
+                forwardJobHandles.Add(agents[j].Forward(states[i], MINI_BATCH_SIZE, actionDists[j], 0));
+                forwardJobHandles.Add(critics[j].Forward(states[i], MINI_BATCH_SIZE, stateVals[j], 0));
             }
             JobHandle.CompleteAll(forwardJobHandles);
             forwardJobHandles.Dispose();
@@ -352,11 +439,11 @@ public class GameManager : MonoBehaviour
                 PPOUpdateJob ppoJob = new PPOUpdateJob {
                     actionDists = actionDists[j],
                     stateVal = stateVals[j],
-                    actions = actions[epoch, i],
-                    old_log_probs = log_probs[epoch, i],
-                    returns = returns[epoch, i],
-                    advantage = advantages[epoch, i],
-                    stds= agents[j].std,
+                    actions = actions[i],
+                    old_log_probs = log_probs[i],
+                    returns = returns[i],
+                    advantage = advantages[i],
+                    stds = agents[j].std,
                     entropy = agents[j].entropy,
                     NUM_ACTIONS = NUM_ACTIONS,
                     PPO_EPILSON = PPO_EPILSON,
@@ -410,14 +497,19 @@ public class GameManager : MonoBehaviour
             agents[i].Dispose();
             critics[i].Dispose();
         }
+        batchStates.Dispose();
+        batchActions.Dispose();
+        batchLog_Probs.Dispose();
+        batchReturns.Dispose();
+        batchAdvantages.Dispose();
+        for (int i = 0; i < NUM_MINI_BATCHES; i++) {
+            states[i].Dispose();
+            actions[i].Dispose();
+            log_probs[i].Dispose();
+            returns[i].Dispose();
+            advantages[i].Dispose();
+        }
         for (int i = 0; i < NUM_PPO_EPOCHS; i++) {
-            for (int j = 0; j < NUM_MINI_BATCHES; j++) {
-                states[i, j].Dispose();
-                actions[i, j].Dispose();
-                log_probs[i, j].Dispose();
-                returns[i, j].Dispose();
-                advantages[i, j].Dispose();
-            }
             minibatches[i].Dispose();
         }
 

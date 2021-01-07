@@ -15,13 +15,13 @@ public class GoalDetector : MonoBehaviour
     public void checkGoalScored()
     {
     	// Make offset for z in grid if needed
-        if (tf.localPosition.x <= -15 && tf.localPosition.z >= -4 && tf.localPosition.z <= 4) {
+        if (tf.localPosition.x <= -15 && tf.localPosition.z >= -9 && tf.localPosition.z <= 9) {
         	//Blue scored
         	blueWon = true;
         	redWon = false;
 
 		}
-		if (tf.localPosition.x >= 15 && tf.localPosition.z >= -4 && tf.localPosition.z <= 4) {
+		if (tf.localPosition.x >= 15 && tf.localPosition.z >= -9 && tf.localPosition.z <= 9) {
 			// Red scored
         	blueWon = false;
 			redWon = true;
