@@ -14,7 +14,7 @@ public class NNSerializer : MonoBehaviour
 		NNSerializableWrapper jsonObject = new NNSerializableWrapper(serializeableActors, serializeableCritics);
 		HandleTextFile.WriteString(path, JsonUtility.ToJson(jsonObject));
 	}
-	public static void Deseralize(string path, NeuralNetwork[] actors, NeuralNetwork[] critics){
+	public static void Deserialize(string path, NeuralNetwork[] actors, NeuralNetwork[] critics){
 		string txt = HandleTextFile.ReadString(path);
 		NNSerializableWrapper data = JsonUtility.FromJson<NNSerializableWrapper>(txt);
 		for (int i=0; i<data.actors.Length; i++){
