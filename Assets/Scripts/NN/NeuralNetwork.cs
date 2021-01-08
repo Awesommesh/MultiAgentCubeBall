@@ -19,13 +19,13 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
     NativeArray<double>[] layerGrads;
 
     //NN Parameters
-    int numLayers;
-    int numInputs;
-    int numOutputs;
+    public int numLayers;
+    public int numInputs;
+    public int numOutputs;
     int maxForwardCalls;
     int maxBatchSize;
 
-    ActivationType[] activations;
+    public ActivationType[] activations;
     public NativeArray<double> std;
     public double entropy;
     NativeArray<double>[,] inputs;
@@ -80,7 +80,35 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
         std_mean /= stdVals.Length;
         entropy = GaussianDistribution.entropy(std_mean);
     }
+    public static NeuralNetwork SerializableToNN(NNSerializable nn) {
+        NativeArray<int>[] weightsShape = new NativeArray<int>[nn.weightsShape.Length];
+        NativeArray<double>[] weights = new NativeArray<double>[nn.weights.Length];
+        ActivationType[] activations = new ActivationType[nn.activations.Length];
+        for (int i=0; i<nn.weightsShape.Length; i++){
+            weightsShape[i] = new NativeArray<int>(nn.weightsShape[i].Length, Allocator.Persistent);
+            for (int j=0; j<nn.weightsShape[i].Length; j++){
+                weightsShape[i][j] = nn.weightsShape[i][j];
+            }
+        }
+        for (int i=0; i<nn.weights.Length; i++){
+            weights[i] = new NativeArray<double>(nn.weights[i].Length, Allocator.Persistent);
+            for (int j=0; j<nn.weights[i].Length; j++){
+                weights[i][j] = nn.weights[i][j];
+            }
+        }
 
+        double[] stdVals = nn.stdVals;
+
+        for (int i=0; i<nn.activations.Length; i++){
+            activations[i] = (ActivationType)nn.activations[i];
+        }
+
+        int numLayers = nn.numLayers;
+        int numInputs = nn.numInputs;
+        int numOutputs = nn.numOutputs;
+        
+        return new NeuralNetwork(numLayers, activations, weights, weightsShape, numInputs, numOutputs, stdVals, GameManager.ALPHA, GameManager.BETA1, GameManager.BETA2, GameManager.EPSILON, GameManager.ADAM_BATCH_SIZE, 2, GameManager.MINI_BATCH_SIZE);
+    }
     public void resetOptimizerWeights() {
         for (int i = 0; i < numLayers; i++) {
             for (int j = 0; j < weights[i].Length; j++) {
