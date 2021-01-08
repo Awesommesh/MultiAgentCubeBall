@@ -63,7 +63,7 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
                 S_dw[i][j] = 0;
             }
         }
-        iteration = 0;
+        iteration = 1;
         this.numInputs = numInputs;
         this.numOutputs = numOutputs;
         this.alpha = alpha;
@@ -116,7 +116,7 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
                 S_dw[i][j] = 0;
             }
         }
-        iteration = 0;
+        iteration = 1;
     }
 
     public JobHandle Forward(NativeArray<double> input, int numInputs, NativeArray<double> output, int id) {
@@ -232,7 +232,7 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
             //Adam Optimization Job
             AdamOptimizerStepJob adamJob = new AdamOptimizerStepJob {
                 weightsGrad = weightsGrads[i],
-                alpha = alpha,
+                alpha = (alpha/math.sqrt(GameManager.ITERATION)),
                 beta1 = beta1,
                 beta2 = beta2,
                 epsilon = epsilon,
@@ -242,7 +242,7 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
                 weights = weights[i]
             };
 
-            curAdamHandle = adamJob.Schedule(weights.Length, adamJobBatchSize, curLayerHandle);
+            curAdamHandle = adamJob.Schedule(weights[i].Length, adamJobBatchSize, curLayerHandle);
             prevLayerHandle = curAdamHandle;
         }
         iteration++;
@@ -284,7 +284,7 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
             //Adam Optimization Job
             AdamOptimizerStepJob adamJob = new AdamOptimizerStepJob {
                 weightsGrad = weightsGrads[i],
-                alpha = alpha,
+                alpha = (alpha/math.sqrt(GameManager.ITERATION)),
                 beta1 = beta1,
                 beta2 = beta2,
                 epsilon = epsilon,
@@ -293,8 +293,7 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
                 S_dw = S_dw[i],
                 weights = weights[i]
             };
-
-            curAdamHandle = adamJob.Schedule(weights.Length, adamJobBatchSize, curLayerHandle);
+            curAdamHandle = adamJob.Schedule(weights[i].Length, adamJobBatchSize, curLayerHandle);
             prevLayerHandle = curAdamHandle;
         }
         iteration++;

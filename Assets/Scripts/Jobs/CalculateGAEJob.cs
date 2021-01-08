@@ -27,32 +27,40 @@ public struct CalculateGAEJob : IJob {
     [ReadOnly]
     public double EPSILON;
 
-    [WriteOnly]
     public NativeArray<double> returns;
     public NativeArray<double> advantages;
     
     public void Execute() {
-        double mean = 0;
-        double std = 0;
+        double retMean = 0;
+        double retStd = 0;
+        double advMean = 0;
+        double advStd = 0;
         double gae = rewards[numSteps-1] + gamma * next_value * mask[numSteps - 1] - values[numSteps- 1];
         setAdvantages(0, gae);
-        mean += gae;
+        advMean += gae;
         setReturns(0, gae + values[numSteps - 1]);
+        retMean += gae + values[numSteps - 1];
         for (int i = numSteps-2; i >= 0; i--) {
             double delta = rewards[i] + gamma * values[i+1] * mask[i] - values[i];
             gae = delta + gamma * lambda * mask[i] * gae;
             setAdvantages(numSteps-i-1, gae);
-            mean += gae;
+            advMean += gae;
             setReturns(numSteps-i-1, gae + values[i]);
+            retMean += gae + values[i];
         }
-        mean /= numSteps;
+        advMean /= numSteps;
+        retMean /= numSteps;
         for (int i = 0; i < numSteps; i++) {
-            std += math.pow(math.abs(getAdvantages(i) - mean), 2);
+            advStd += math.pow(math.abs(getAdvantages(i) - advMean), 2);
+            retStd += math.pow(math.abs(getReturns(i) - retMean), 2);
         }
-        std /= numSteps;
-        std = math.sqrt(std);
+        advStd /= numSteps;
+        advStd = math.sqrt(advStd);
+        retStd /= numSteps;
+        retStd = math.sqrt(retStd);
         for (int i = 0; i < numSteps; i++) {
-            setAdvantages(i, ((getAdvantages(i) - mean)/(std + EPSILON)));
+            setAdvantages(i, ((getAdvantages(i) - advMean)/(advStd + EPSILON)));
+            setReturns(i, ((getReturns(i) - retMean)/(retStd + EPSILON)));
         }
     }
 
@@ -66,5 +74,9 @@ public struct CalculateGAEJob : IJob {
 
     public void setReturns(int index, double value) {
         returns[TEAM_SIZE*index + agentInd] = value;
+    }
+
+    public double getReturns(int index) {
+        return returns[TEAM_SIZE*index + agentInd];
     }
 }

@@ -8,19 +8,20 @@ using System.IO;
 
 public class GameManager : MonoBehaviour
 {
-    public static uint SEED = 1;
+    public static uint SEED = 17;
     public static uint NDArrayGenSeed = 2;
     public uint MINI_BATCH_SEED = 4;
-    public int NUM_ENV = 1;
+    public int NUM_ENV;
     public static double GAE_LAMBDA = 0.95;
     public static double GAMMA = 0.99;
     public static double ALPHA = 0.0005;
     public static double BETA1 = 0.9;
     public static double BETA2 = 0.999;
-    public static double EPSILON = 0.00000001;
+    public static double EPSILON = 0.0000000001;
     public static int EPISODE_LENGTH = 128;
+    public static int ITERATION = 1;
     public int BATCH_SIZE;
-    public static int MINI_BATCH_SIZE = 16;
+    public static int MINI_BATCH_SIZE = 256;
     public int NUM_MINI_BATCHES;
     public static int ADAM_BATCH_SIZE = 32;
     public int NUM_PPO_EPOCHS = 10;
@@ -82,6 +83,7 @@ public class GameManager : MonoBehaviour
     [BurstCompile]
     void Awake() {
         Physics.autoSimulation = false;
+        ITERATION = 1;
         BATCH_SIZE = EPISODE_LENGTH * NUM_ENV * TEAM_SIZE * 2;
         NUM_MINI_BATCHES = BATCH_SIZE / MINI_BATCH_SIZE;
         minibatches = new NativeArray<int>[NUM_PPO_EPOCHS];
@@ -151,18 +153,18 @@ public class GameManager : MonoBehaviour
                     redOriginalPos[k] = newRedTeam[k].transform.position;
                 }
                 envs[numEnvCreated] = new Experience(newBall, newBlueGoal, newRedGoal, newBlueTeam, newRedTeam, 
-                    ballOriginalPos, blueOriginalPos, redOriginalPos);
+                    ballOriginalPos, blueOriginalPos, redOriginalPos, (uint)((numEnvCreated+1)*117));
                 numEnvCreated++;
             }
         }
 
         actors = new NeuralNetwork[TEAM_SIZE];
         critics = new NeuralNetwork[TEAM_SIZE];
-
-        if(File.Exists(path) && loadFromFile){
+        
+        if (File.Exists(path) && loadFromFile){
             NNSerializer.Deserialize(path, actors, critics);
-        } else {
-            //Initialize NN randomly with correct architecture etc.
+
+        else {
             layerShapes = new NativeArray<int>[numLayers];
             for (int i = 0; i < numLayers; i++) {
                 layerShapes[i] = new NativeArray<int>(2, Allocator.Persistent);
@@ -186,17 +188,23 @@ public class GameManager : MonoBehaviour
 
             actorStd = new double[NUM_ACTIONS];
             for (int i = 0; i < NUM_ACTIONS; i++) {
-                actorStd[i] = 5;
+                actorStd[i] = 10;
             }
             criticStd = new double[1];
             criticStd[0] = 1;
 
-            ActivationType[] activationList = new ActivationType[numLayers];
-            activationList[0] = ActivationType.ReLU;
-            activationList[1] = ActivationType.ReLU;
-            activationList[2] = ActivationType.ReLU;
-            activationList[3] = ActivationType.ReLU;
-            activationList[4] = ActivationType.None;
+            ActivationType[] actorActivationList = new ActivationType[numLayers];
+            actorActivationList[0] = ActivationType.ReLU;
+            actorActivationList[1] = ActivationType.ReLU;
+            actorActivationList[2] = ActivationType.ReLU;
+            actorActivationList[3] = ActivationType.ReLU;
+            actorActivationList[4] = ActivationType.None;
+            ActivationType[] criticActivationList = new ActivationType[numLayers];
+            criticActivationList[0] = ActivationType.ReLU;
+            criticActivationList[1] = ActivationType.ReLU;
+            criticActivationList[2] = ActivationType.ReLU;
+            criticActivationList[3] = ActivationType.ReLU;
+            criticActivationList[4] = ActivationType.None;
             
             for (int i = 0; i < TEAM_SIZE; i++) {
                 NativeArray<double>[] weights = new NativeArray<double>[numLayers];
@@ -207,7 +215,7 @@ public class GameManager : MonoBehaviour
                     curShape[j][1] = layerShapes[j][1];
                     weights[j] = NativeNDOps.HeInitializedNDArray(layerShapes[j], layerShapes[j][1], Allocator.Persistent);
                 }
-                actors[i] = new NeuralNetwork(numLayers, activationList, weights, curShape, STATE_SIZE, NUM_ACTIONS, 
+                actors[i] = new NeuralNetwork(numLayers, actorActivationList, weights, curShape, STATE_SIZE, NUM_ACTIONS, 
                     actorStd, ALPHA, BETA1, BETA2, EPSILON, ADAM_BATCH_SIZE, 2, MINI_BATCH_SIZE);
                 weights = new NativeArray<double>[numLayers];
                 curShape = new NativeArray<int>[numLayers];
@@ -221,13 +229,8 @@ public class GameManager : MonoBehaviour
                     curShape[j][1] = layerShapes[j][1];
                     weights[j] = NativeNDOps.HeInitializedNDArray(layerShapes[j], layerShapes[j][1], Allocator.Persistent);
                 }
-                activationList = new ActivationType[numLayers];
-                activationList[0] = ActivationType.ReLU;
-                activationList[1] = ActivationType.ReLU;
-                activationList[2] = ActivationType.ReLU;
-                activationList[3] = ActivationType.ReLU;
-                activationList[4] = ActivationType.Sigmoid;
-                critics[i] = new NeuralNetwork(numLayers, activationList, weights, curShape, STATE_SIZE, 1, 
+                
+                critics[i] = new NeuralNetwork(numLayers, criticActivationList, weights, curShape, STATE_SIZE, 1, 
                     criticStd, ALPHA, BETA1, BETA2, EPSILON, ADAM_BATCH_SIZE, 2, MINI_BATCH_SIZE);
             }
             for (int i = 0; i < numLayers; i++) {
@@ -287,10 +290,9 @@ public class GameManager : MonoBehaviour
                         }
                     }
                 }
-
                 //Generate set of minibatches randomly for each PPO EPOCH
                 NativeArray<JobHandle> generateMiniBatchesJobHandles = new NativeArray<JobHandle>(NUM_PPO_EPOCHS, Allocator.Persistent);
-                for (int i = 0; i < 1/*NUM_PPO_EPOCHS*/; i++) {
+                for (int i = 0; i < NUM_PPO_EPOCHS; i++) {
                     //Generate set of minibatches randomly
                     GenerateMiniBatchesJob batchJob = new GenerateMiniBatchesJob {
                         seed = (uint)(randSeed.NextDouble()*100000+11),
@@ -315,85 +317,11 @@ public class GameManager : MonoBehaviour
                                 log_probs[j][l*MINI_BATCH_SIZE + k] = batchLog_Probs[index*NUM_ACTIONS+l];
                             }
                             returns[j][k] = batchReturns[index];
-                            advantages[j][k] = batchReturns[index];
+                            advantages[j][k] = batchAdvantages[index];
                         }
                     }
                     PPO_Update(i);
                 }
-
-
-                //Old
-                /*
-                for (int i = 0; i < NUM_PPO_EPOCHS; i++) {
-                    //Setup Data in mini_batches based on generate mini batches output
-                    if (i == 0) { 
-                        int curInd = 0;
-                        //First epoch have to read from all the environments
-                        for (int e = 0; e < NUM_ENV; e++) {
-                            //Get final values and calc gae
-                            envs[e].getNextValues(critics, critics);
-                            envs[e].CalculateGAE();
-                            //Merge current environment data to form first set of minibatches
-                            //For each player on given env append all of their experiences in random order
-                            for (int j = 0; j < TEAM_SIZE; j++) {
-                                for (int k = 0; k < EPISODE_LENGTH; k++) {
-                                    if (curInd >= NUM_MINI_BATCHES * MINI_BATCH_SIZE) {
-                                        Debug.Log("NOTE: HAD TO SKIP SOME EXPERIENCE DATA BECAUSE BATCH_SIZE WASN'T DIVISIBLE BY MINI_BATCH_SIZE. Missed " 
-                                            + (BATCH_SIZE-NUM_MINI_BATCHES * MINI_BATCH_SIZE) + " transitions...");
-                                        break;
-                                    }
-                                    int index = minibatches[i][curInd];
-                                    int batchNo = index / MINI_BATCH_SIZE;
-                                    int nextIndex = minibatches[i][curInd + 1];
-                                    int nextBatchNo = nextIndex / MINI_BATCH_SIZE;
-
-                                    //Blue and Red Agent j's kth time_step
-                                    for (int l = 0; l < STATE_SIZE; l++) {
-                                        states[i, batchNo][l*MINI_BATCH_SIZE + (index % MINI_BATCH_SIZE)] = envs[e].blueStates[k][l];
-                                        states[i, nextBatchNo][l*MINI_BATCH_SIZE + (nextIndex % MINI_BATCH_SIZE)] = envs[e].redStates[k][l];
-                                    }
-                                    for (int l = 0; l < NUM_ACTIONS; l++) {
-                                        actions[i, batchNo][l*MINI_BATCH_SIZE + (index % MINI_BATCH_SIZE)] = envs[e].blueActions[k, j][l];
-                                        actions[i, nextBatchNo][l*MINI_BATCH_SIZE + (nextIndex % MINI_BATCH_SIZE)] = envs[e].redActions[k, j][l];
-                                        log_probs[i, batchNo][l*MINI_BATCH_SIZE + (index % MINI_BATCH_SIZE)] = envs[e].blueLog_Probs[k, j][l];
-                                        log_probs[i, nextBatchNo][l*MINI_BATCH_SIZE + (nextIndex % MINI_BATCH_SIZE)] = envs[e].redLog_Probs[k, j][l];
-                                    }
-                                    
-                                    returns[i, batchNo][(index % MINI_BATCH_SIZE)] = envs[e].blueReturns[k*TEAM_SIZE + j];
-                                    advantages[i, batchNo][(index % MINI_BATCH_SIZE)] = envs[e].blueAdvantages[k*TEAM_SIZE + j];
-                                    returns[i, nextBatchNo][(nextIndex % MINI_BATCH_SIZE)] = envs[e].redReturns[k*TEAM_SIZE + j];
-                                    advantages[i, nextBatchNo][(nextIndex % MINI_BATCH_SIZE)] = envs[e].redAdvantages[k*TEAM_SIZE + j];
-                                    curInd+=2;
-                                }
-                            }
-                        }
-                    } else {
-                        //Select from previous epoch gathered data
-                        for (int j = 0; j < NUM_MINI_BATCHES * MINI_BATCH_SIZE; j++) {
-                            int index = minibatches[i][j];
-                            int curBatchNo = index / MINI_BATCH_SIZE;
-                            int prevBatchNo = j / MINI_BATCH_SIZE;
-                            for (int k = 0; k < STATE_SIZE; k++) {
-                                states[i, curBatchNo][k*MINI_BATCH_SIZE + (index % MINI_BATCH_SIZE)] = states[i-1, prevBatchNo][k*MINI_BATCH_SIZE + (j % MINI_BATCH_SIZE)];
-                            }
-                            for (int k = 0; k < NUM_ACTIONS; k++) {
-                                actions[i, curBatchNo][k*MINI_BATCH_SIZE + (index % MINI_BATCH_SIZE)] = actions[i-1, prevBatchNo][k*MINI_BATCH_SIZE + (j % MINI_BATCH_SIZE)];
-                                log_probs[i, curBatchNo][k*MINI_BATCH_SIZE + (index % MINI_BATCH_SIZE)] = log_probs[i-1, prevBatchNo][k*MINI_BATCH_SIZE + (j % MINI_BATCH_SIZE)];
-                            }
-                            returns[i, curBatchNo][index % MINI_BATCH_SIZE] = returns[i-1, prevBatchNo][j % MINI_BATCH_SIZE];
-                            advantages[i, curBatchNo][index % MINI_BATCH_SIZE] = advantages[i-1, prevBatchNo][j % MINI_BATCH_SIZE];
-                        }
-                        //Dispose previous ppo_epoch data
-                        //DisposePPOEpochData(i-1);
-                    }
-                    if (i == 0) {
-                        for (int j = 0; j < MINI_BATCH_SIZE; j++) {
-                            Debug.Log(states[i, 0][(STATE_SIZE-1)*MINI_BATCH_SIZE + j]);
-                        }
-                    }
-                    PPO_Update(i);
-                }
-                */
                 for (int i = 0; i < TEAM_SIZE; i++) {
                     actors[i].resetOptimizerWeights();
                     critics[i].resetOptimizerWeights();
@@ -423,6 +351,7 @@ public class GameManager : MonoBehaviour
                     envs[i].resetEnv();
                 }
                 episode_iteration = 0;
+                ITERATION++;
             }
             Physics.Simulate(PHYSICS_STEP_SIZE);
         }
@@ -433,6 +362,11 @@ public class GameManager : MonoBehaviour
         //Debug.Log("Starting PPO EPOCH");
         for (int i = 0; i < NUM_MINI_BATCHES; i++) {
             NativeList<JobHandle> forwardJobHandles = new NativeList<JobHandle>(TEAM_SIZE*2, Allocator.Persistent);
+            //if (i == 0) {
+                /*for (int j = 0; j < states[i].Length; j++) {
+                    Debug.Log(states[i][j]);
+                }*/
+            //}
             for (int j = 0; j < TEAM_SIZE; j++) {
                 forwardJobHandles.Add(actors[j].Forward(states[i], MINI_BATCH_SIZE, actionDists[j], 0));
                 forwardJobHandles.Add(critics[j].Forward(states[i], MINI_BATCH_SIZE, stateVals[j], 0));
@@ -447,6 +381,16 @@ public class GameManager : MonoBehaviour
                 total_entropy += actors[j].entropy*MINI_BATCH_SIZE;
                 AL[j] = new NativeArray<double>(1, Allocator.Persistent);
                 CL[j] = new NativeArray<double>(1, Allocator.Persistent);
+                if (i == 0 && epoch == 1) {
+                    /*for (int k = 0; k < actionDists[j].Length; k++) {
+                        if (math.abs(actionDists[j][k]) > 100) {
+                            Debug.Log(j + "wtf"+(k/MINI_BATCH_SIZE));
+                        }
+                    }*/
+                    /*for (int k = 0; k < stateVals[j].Length; k++) {
+                        Debug.Log(math.log(stateVals[j][k]/(1-stateVals[j][k])));
+                    }*/
+                }
                 //entropyL = new NativeArray<double>(1, Allocator.Persistent);
                 PPOUpdateJob ppoJob = new PPOUpdateJob {
                     actionDists = actionDists[j],
@@ -486,17 +430,6 @@ public class GameManager : MonoBehaviour
             }
         }        
     }
-
-    /*[BurstCompile]
-    void DisposePPOEpochData(int epoch) {
-        for (int i = 0; i < NUM_MINI_BATCHES; i++) {
-            states[epoch, i].Dispose();
-            actions[epoch, i].Dispose();
-            log_probs[epoch, i].Dispose();
-            returns[epoch, i].Dispose();
-            advantages[epoch, i].Dispose();
-        }
-    }*/
 
     void OnApplicationQuit()
     {
