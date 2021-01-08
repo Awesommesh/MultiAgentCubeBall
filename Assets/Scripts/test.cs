@@ -14,11 +14,13 @@ public class test : MonoBehaviour
         aShape[1]=2;
         NativeArray<double> aData = new NativeArray<double>(6, Allocator.Persistent);
         aData[0] = 1;
-        aData[1] = 2;
+        aData[1] = 7;
         aData[2] = 3;
         aData[3] = 4;
         aData[4] = 5;
         aData[5] = 6;
+
+
 
         /*NativeArray<double> aOnes = new NativeArray<double>(9, Allocator.Persistent);
         NativeArray<int> aOnesShape = new NativeArray<int>(2, Allocator.Persistent);
@@ -57,13 +59,13 @@ public class test : MonoBehaviour
         Debug.Log("b: ");
         printMatrix(bShape, bData);
 
-        //NativeNDOps.Dot(aData, aShape, 0, bData, bShape, 0, output);
-        matmul(1, 0, aShape[0], aShape[1], bShape[0], bShape[1], (double *)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(aData), 
-        (double *)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(bData), 
-        (double *)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(output));
-
         Debug.Log("Dot Product: ");
         printMatrix(outputShape, output);
+
+        NativeArray<double> test = new NativeArray<double>(3, Allocator.Persistent);
+        Debug.Log("Partial MemCpy");
+        NativeNDOps.CopyPartial(aData, test, 3);
+        Debug.Log(test[0] + " "  +  test[1] + " " + test[2]);
 
         NativeArray<int> functionOutShape = new NativeArray<int>(2, Allocator.Persistent);
         functionOutShape[0] = 2;

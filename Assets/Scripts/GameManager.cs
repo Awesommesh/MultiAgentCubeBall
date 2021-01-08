@@ -4,6 +4,8 @@ using Unity.Collections;
 using Unity.Jobs;
 using Unity.Burst;
 using System;
+using System.IO;
+
 public class GameManager : MonoBehaviour
 {
     public static uint SEED = 17;
@@ -70,6 +72,11 @@ public class GameManager : MonoBehaviour
     double critic_loss = 0;
     double total_loss = 0;
     double total_entropy = 0;
+
+    //Serialization
+    public string path;
+    public bool loadFromFile;
+    bool saveExists;
 
     Unity.Mathematics.Random randSeed;
 
@@ -150,80 +157,85 @@ public class GameManager : MonoBehaviour
                 numEnvCreated++;
             }
         }
-        
-        //Initialize NN randomly with correct architecture etc.
-        layerShapes = new NativeArray<int>[numLayers];
-        for (int i = 0; i < numLayers; i++) {
-            layerShapes[i] = new NativeArray<int>(2, Allocator.Persistent);
-        }
-        //Have to hard code layer shapes ...
-        //layer 1
-        layerShapes[0][0] = 228;
-        layerShapes[0][1] = STATE_SIZE+1;
-        //layer 2
-        layerShapes[1][0] = 684;
-        layerShapes[1][1] = 228+1;
-        //layer 3
-        layerShapes[2][0] = 342;
-        layerShapes[2][1] = 684+1;
-        //layer 4
-        layerShapes[3][0] = 171;
-        layerShapes[3][1] = 342+1;
-        //layer 5
-        layerShapes[4][0] = 3;
-        layerShapes[4][1] = 171+1;
 
-        actorStd = new double[NUM_ACTIONS];
-        for (int i = 0; i < NUM_ACTIONS; i++) {
-            actorStd[i] = 10;
-        }
-        criticStd = new double[1];
-        criticStd[0] = 1;
         actors = new NeuralNetwork[TEAM_SIZE];
         critics = new NeuralNetwork[TEAM_SIZE];
-
-        ActivationType[] actorActivationList = new ActivationType[numLayers];
-        actorActivationList[0] = ActivationType.ReLU;
-        actorActivationList[1] = ActivationType.ReLU;
-        actorActivationList[2] = ActivationType.ReLU;
-        actorActivationList[3] = ActivationType.ReLU;
-        actorActivationList[4] = ActivationType.None;
-        ActivationType[] criticActivationList = new ActivationType[numLayers];
-        criticActivationList[0] = ActivationType.ReLU;
-        criticActivationList[1] = ActivationType.ReLU;
-        criticActivationList[2] = ActivationType.ReLU;
-        criticActivationList[3] = ActivationType.ReLU;
-        criticActivationList[4] = ActivationType.None;
         
-        for (int i = 0; i < TEAM_SIZE; i++) {
-            NativeArray<double>[] weights = new NativeArray<double>[numLayers];
-            NativeArray<int>[] curShape = new NativeArray<int>[numLayers];
-            for (int j = 0; j < numLayers; j++) {
-                curShape[j] = new NativeArray<int>(numLayers, Allocator.Persistent);
-                curShape[j][0] = layerShapes[j][0];
-                curShape[j][1] = layerShapes[j][1];
-                weights[j] = NativeNDOps.HeInitializedNDArray(layerShapes[j], layerShapes[j][1], Allocator.Persistent);
+        if (File.Exists(path) && loadFromFile){
+            NNSerializer.Deserialize(path, actors, critics);
+
+        else {
+            layerShapes = new NativeArray<int>[numLayers];
+            for (int i = 0; i < numLayers; i++) {
+                layerShapes[i] = new NativeArray<int>(2, Allocator.Persistent);
             }
-            actors[i] = new NeuralNetwork(numLayers, actorActivationList, weights, curShape, STATE_SIZE, NUM_ACTIONS, 
-                actorStd, ALPHA, BETA1, BETA2, EPSILON, ADAM_BATCH_SIZE, 2, MINI_BATCH_SIZE);
-            weights = new NativeArray<double>[numLayers];
-            curShape = new NativeArray<int>[numLayers];
-            for (int j = 0; j < numLayers; j++) {
-                curShape[j] = new NativeArray<int>(numLayers, Allocator.Persistent);
-                if (j == numLayers - 1) {
-                    curShape[j][0] = 1;
-                } else {
-                    curShape[j][0] = layerShapes[j][0];
-                }
-                curShape[j][1] = layerShapes[j][1];
-                weights[j] = NativeNDOps.HeInitializedNDArray(layerShapes[j], layerShapes[j][1], Allocator.Persistent);
+            //Have to hard code layer shapes ...
+            //layer 1
+            layerShapes[0][0] = 228;
+            layerShapes[0][1] = STATE_SIZE+1;
+            //layer 2
+            layerShapes[1][0] = 684;
+            layerShapes[1][1] = 228+1;
+            //layer 3
+            layerShapes[2][0] = 342;
+            layerShapes[2][1] = 684+1;
+            //layer 4
+            layerShapes[3][0] = 171;
+            layerShapes[3][1] = 342+1;
+            //layer 5
+            layerShapes[4][0] = 3;
+            layerShapes[4][1] = 171+1;
+
+            actorStd = new double[NUM_ACTIONS];
+            for (int i = 0; i < NUM_ACTIONS; i++) {
+                actorStd[i] = 10;
             }
+            criticStd = new double[1];
+            criticStd[0] = 1;
+
+            ActivationType[] actorActivationList = new ActivationType[numLayers];
+            actorActivationList[0] = ActivationType.ReLU;
+            actorActivationList[1] = ActivationType.ReLU;
+            actorActivationList[2] = ActivationType.ReLU;
+            actorActivationList[3] = ActivationType.ReLU;
+            actorActivationList[4] = ActivationType.None;
+            ActivationType[] criticActivationList = new ActivationType[numLayers];
+            criticActivationList[0] = ActivationType.ReLU;
+            criticActivationList[1] = ActivationType.ReLU;
+            criticActivationList[2] = ActivationType.ReLU;
+            criticActivationList[3] = ActivationType.ReLU;
+            criticActivationList[4] = ActivationType.None;
             
-            critics[i] = new NeuralNetwork(numLayers, criticActivationList, weights, curShape, STATE_SIZE, 1, 
-                criticStd, ALPHA, BETA1, BETA2, EPSILON, ADAM_BATCH_SIZE, 2, MINI_BATCH_SIZE);
-        }
-        for (int i = 0; i < numLayers; i++) {
-            layerShapes[i].Dispose();
+            for (int i = 0; i < TEAM_SIZE; i++) {
+                NativeArray<double>[] weights = new NativeArray<double>[numLayers];
+                NativeArray<int>[] curShape = new NativeArray<int>[numLayers];
+                for (int j = 0; j < numLayers; j++) {
+                    curShape[j] = new NativeArray<int>(numLayers, Allocator.Persistent);
+                    curShape[j][0] = layerShapes[j][0];
+                    curShape[j][1] = layerShapes[j][1];
+                    weights[j] = NativeNDOps.HeInitializedNDArray(layerShapes[j], layerShapes[j][1], Allocator.Persistent);
+                }
+                actors[i] = new NeuralNetwork(numLayers, actorActivationList, weights, curShape, STATE_SIZE, NUM_ACTIONS, 
+                    actorStd, ALPHA, BETA1, BETA2, EPSILON, ADAM_BATCH_SIZE, 2, MINI_BATCH_SIZE);
+                weights = new NativeArray<double>[numLayers];
+                curShape = new NativeArray<int>[numLayers];
+                for (int j = 0; j < numLayers; j++) {
+                    curShape[j] = new NativeArray<int>(numLayers, Allocator.Persistent);
+                    if (j == numLayers - 1) {
+                        curShape[j][0] = 1;
+                    } else {
+                        curShape[j][0] = layerShapes[j][0];
+                    }
+                    curShape[j][1] = layerShapes[j][1];
+                    weights[j] = NativeNDOps.HeInitializedNDArray(layerShapes[j], layerShapes[j][1], Allocator.Persistent);
+                }
+                
+                critics[i] = new NeuralNetwork(numLayers, criticActivationList, weights, curShape, STATE_SIZE, 1, 
+                    criticStd, ALPHA, BETA1, BETA2, EPSILON, ADAM_BATCH_SIZE, 2, MINI_BATCH_SIZE);
+            }
+            for (int i = 0; i < numLayers; i++) {
+                layerShapes[i].Dispose();
+            }
         }
     }
 
