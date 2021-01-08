@@ -44,6 +44,7 @@ public class Experience {
     int time_step = 0;
     GoalDetector ballGoal; 
     double FIELD_LENGTH;
+    const double FIELD_WIDTH = 30;
     double goalWidth = 18;
     double goalHeight = 8;
     Unity.Mathematics.Random customSampler;
@@ -335,6 +336,11 @@ public class Experience {
                 blueActions[time_step, i][j] = GaussianDistribution.NextGaussian(actionDists[i, 0][j], blueAgents[i].std[j], customSampler);
                 blueLog_Probs[time_step, i][j] = GaussianDistribution.log_prob(blueActions[time_step, i][j], actionDists[i, 0][j], blueAgents[i].std[j]);
             }
+            for (int j = 0; j < GameManager.NUM_ACTIONS; j++) {
+                if (Math.Abs(actionDists[i, 0][j]) > 100) {
+                    Debug.Log("wtf:" + actionDists[i, 0][j]);
+                }
+            }
             rb = bluePlayers[i].GetComponent<Rigidbody>();
             Vector3d force = Vector3d.Normalize(new Vector3d(blueActions[time_step, i][0], 0, blueActions[time_step, i][1]));
             force *= GameManager.MAX_SPEED*Sigmoid(blueActions[time_step, i][2]);
@@ -344,6 +350,11 @@ public class Experience {
             for (int j = 0; j < GameManager.NUM_ACTIONS; j++) {
                 redActions[time_step, i][j] = GaussianDistribution.NextGaussian(actionDists[i, 1][j], redAgents[i].std[j], customSampler);
                 redLog_Probs[time_step, i][j] = GaussianDistribution.log_prob(redActions[time_step, i][j], actionDists[i, 1][j], redAgents[i].std[j]);
+            }
+            for (int j = 0; j < GameManager.NUM_ACTIONS; j++) {
+                if (Math.Abs(actionDists[i, 0][j]) > 100) {
+                    Debug.Log("wtf1:" + actionDists[i, 1][j]);
+                }
             }
             rb = redPlayers[i].GetComponent<Rigidbody>();
             force = Vector3d.Normalize(new Vector3d(redActions[time_step, i][0], 0, redActions[time_step, i][1]));
@@ -489,6 +500,10 @@ public class Experience {
             rb = redPlayers[i].GetComponent<Rigidbody>();
             rb.velocity = new Vector3(0, 0, 0);
         }
+        //Stop ball due to end of episode
+        rb = ball.GetComponent<Rigidbody>();
+        rb.velocity = new Vector3(0, 0, 0);
+
         JobHandle.CompleteAll(forwardJobHandles);
         forwardJobHandles.Dispose();
         curBlueState.Dispose();
@@ -562,7 +577,10 @@ public class Experience {
             //Avg Distance of players to ball
             double totDist = 0;
             double xDiff = math.abs(ball.transform.localPosition.x-bluePlayers[playerInd].transform.localPosition.x);
+            double zDiff = math.abs(ball.transform.localPosition.z-bluePlayers[playerInd].transform.localPosition.z);
             totDist += 1 - ((2*xDiff)/FIELD_LENGTH);
+            totDist += 1 - ((2*zDiff)/FIELD_WIDTH);
+            totDist /= 2;
             if (totDist < GameManager.EPSILON) {
                 totDist = 0;
             }
@@ -573,7 +591,10 @@ public class Experience {
             //Avg Distance of players to ball
             double totDist = 0;
             double xDiff = math.abs(ball.transform.localPosition.x-bluePlayers[playerInd].transform.localPosition.x);
+            double zDiff = math.abs(ball.transform.localPosition.z-bluePlayers[playerInd].transform.localPosition.z);
             totDist += 1 - ((2*xDiff)/FIELD_LENGTH);
+            totDist += 1 - ((2*zDiff)/FIELD_WIDTH);
+            totDist /= 2;
             if (totDist < GameManager.EPSILON) {
                 totDist = 0;
             }
@@ -595,7 +616,10 @@ public class Experience {
             //Avg Distance of players to ball
             double totDist = 0;
             double xDiff = math.abs(ball.transform.localPosition.x-redPlayers[playerInd].transform.localPosition.x);
+            double zDiff = math.abs(ball.transform.localPosition.z-redPlayers[playerInd].transform.localPosition.z);
             totDist += 1 - ((2*xDiff)/FIELD_LENGTH);
+            totDist += 1 - ((2*zDiff)/FIELD_WIDTH);
+            totDist /= 2;
             if (totDist < GameManager.EPSILON) {
                 totDist = 0;
             }
@@ -606,7 +630,10 @@ public class Experience {
             //Avg Distance of players to ball
             double totDist = 0;
             double xDiff = math.abs(ball.transform.localPosition.x-redPlayers[playerInd].transform.localPosition.x);
+            double zDiff = math.abs(ball.transform.localPosition.z-redPlayers[playerInd].transform.localPosition.z);
             totDist += 1 - ((2*xDiff)/FIELD_LENGTH);
+            totDist += 1 - ((2*zDiff)/FIELD_WIDTH);
+            totDist /= 2;
             if (totDist < GameManager.EPSILON) {
                 totDist = 0;
             }
@@ -667,7 +694,5 @@ public class Experience {
             bluePlayers[i].transform.position = blueOriginalPos[i];
             redPlayers[i].transform.position = redOriginalPos[i];
         }
-        Rigidbody ballRb = ball.GetComponent<Rigidbody>();
-        ballRb.velocity = new Vector3(0f, 0f, 0f);
     }
 }

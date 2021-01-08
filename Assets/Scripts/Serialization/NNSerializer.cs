@@ -18,8 +18,8 @@ public class NNSerializer
 		string txt = HandleTextFile.ReadString(path);
 		NNSerializableWrapper data = JsonUtility.FromJson<NNSerializableWrapper>(txt);
 		for (int i=0; i<data.actors.Length; i++){
-			actors[i] = NeuralNetwork.SerializableToNN(data.actors[i]);
-			critics[i] = NeuralNetwork.SerializableToNN(data.critics[i]);
+			actors[i] = NeuralNetwork.SerializableToNN(data.actors[i], GameManager.ACTOR_LR);
+			critics[i] = NeuralNetwork.SerializableToNN(data.critics[i], GameManager.CRITIC_LR);
 		}
 	}
 }

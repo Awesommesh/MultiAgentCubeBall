@@ -248,8 +248,9 @@ MonoBehaviour:
   gameEnv: {fileID: 5599166562531727043, guid: 644466799e3e146b5ac39061b804d6b1, type: 3}
   path: 
   loadFromFile: 0
-  savePath: Assets/SavedModels/test.json
-  saveToFile: 1
+  savePath: Models/test1.json
+  saveToFile: 0
+  overwrite: 0
 --- !u!4 &898156936
 Transform:
   m_ObjectHideFlags: 0

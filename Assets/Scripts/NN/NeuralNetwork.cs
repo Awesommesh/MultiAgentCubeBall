@@ -80,7 +80,7 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
         std_mean /= stdVals.Length;
         entropy = GaussianDistribution.entropy(std_mean);
     }
-    public static NeuralNetwork SerializableToNN(NNSerializable nn) {
+    public static NeuralNetwork SerializableToNN(NNSerializable nn, double alpha) {
         NativeArray<int>[] weightsShape = new NativeArray<int>[nn.weightsShape.Length];
         NativeArray<double>[] weights = new NativeArray<double>[nn.weights.Length];
         ActivationType[] activations = new ActivationType[nn.activations.Length];
@@ -104,7 +104,7 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
         int numInputs = nn.numInputs;
         int numOutputs = nn.numOutputs;
         
-        return new NeuralNetwork(numLayers, activations, weights, weightsShape, numInputs, numOutputs, stdVals, GameManager.ALPHA, GameManager.BETA1, GameManager.BETA2, GameManager.EPSILON, GameManager.ADAM_BATCH_SIZE, 2, GameManager.MINI_BATCH_SIZE);
+        return new NeuralNetwork(numLayers, activations, weights, weightsShape, numInputs, numOutputs, stdVals, alpha, GameManager.BETA1, GameManager.BETA2, GameManager.EPSILON, GameManager.ADAM_BATCH_SIZE, 2, GameManager.MINI_BATCH_SIZE);
     }
     public void resetOptimizerWeights() {
         for (int i = 0; i < numLayers; i++) {

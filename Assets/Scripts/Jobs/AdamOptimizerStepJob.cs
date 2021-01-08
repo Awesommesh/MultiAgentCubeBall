@@ -27,7 +27,10 @@ public struct AdamOptimizerStepJob : IJobParallelFor {
         S_dw[i] = (beta2 * S_dw[i]) + ((1-beta2) * math.pow(weightsGrad[i], 2));
         double V_dw_corrected = V_dw[i] / (1 - math.pow(beta1, iteration));
         double S_dw_corrected = S_dw[i] / (1 - math.pow(beta2, iteration));
-        //UnityEngine.Debug.Log(alpha * (V_dw_corrected / (math.sqrt(S_dw_corrected) + epsilon)));
+        /*if (i == 0) {
+            UnityEngine.Debug.Log(weights[i] + " : " + alpha * (V_dw_corrected / (math.sqrt(S_dw_corrected) + epsilon)));
+        }*/
+        //
         weights[i] -= alpha * (V_dw_corrected / (math.sqrt(S_dw_corrected) + epsilon));
     }
 }
