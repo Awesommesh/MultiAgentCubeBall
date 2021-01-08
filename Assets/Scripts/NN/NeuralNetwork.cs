@@ -252,7 +252,6 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
             } else {
                 curLayerHandle = stepBackwardJob.Schedule(prevLayerHandle);
             }
-            
             //Adam Optimization Job
             AdamOptimizerStepJob adamJob = new AdamOptimizerStepJob {
                 weightsGrad = weightsGrads[i],

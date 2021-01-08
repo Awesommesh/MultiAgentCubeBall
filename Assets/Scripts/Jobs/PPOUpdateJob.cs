@@ -33,7 +33,7 @@ public struct PPOUpdateJob : IJob {
     [ReadOnly]
     public int MINI_BATCH_SIZE;
 
-    [WriteOnly] 
+    //[WriteOnly] 
     public NativeArray<double> actorGrad;
     [WriteOnly]
     public NativeArray<double> criticGrad;
@@ -66,9 +66,9 @@ public struct PPOUpdateJob : IJob {
                 int clamp_back = (ratio > 1+PPO_EPILSON || ratio < 1-PPO_EPILSON) ? 0 : 1;
                 actorGrad[rowInd+j] = actorGradConst * (surr1Less + (1 - surr1Less)*clamp_back)
                     * ratio * advantage[j] * log_prob_back[rowInd + j];
-                /*if ((surr1Less + (1 - surr1Less)*clamp_back) != 0 && actorGrad[rowInd+j] == 0) {
+                if ((surr1Less + (1 - surr1Less)*clamp_back) != 0 && actorGrad[rowInd+j] == 0) {
                     UnityEngine.Debug.Log(advantage[j] + " " + log_prob_back[rowInd + j] + " : " + actions[rowInd + j] + " - " + actionDists[rowInd + j]);
-                }*/
+                }
                 //local_EL += 
             }
             
