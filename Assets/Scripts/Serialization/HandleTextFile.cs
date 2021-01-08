@@ -7,7 +7,7 @@ public class HandleTextFile
     public static void WriteString(string path, string data)
     {
         //Write some text to the data.txt file
-        StreamWriter writer = new StreamWriter(path, true);
+        StreamWriter writer = new StreamWriter(path, false);
         writer.WriteLine(data);
         writer.Close();
     }

@@ -84,19 +84,16 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
         NativeArray<int>[] weightsShape = new NativeArray<int>[nn.weightsShape.Length];
         NativeArray<double>[] weights = new NativeArray<double>[nn.weights.Length];
         ActivationType[] activations = new ActivationType[nn.activations.Length];
-        for (int i=0; i<nn.weightsShape.Length; i++){
+        for (int i=0; i<nn.numLayers; i++){
             weightsShape[i] = new NativeArray<int>(nn.weightsShape[i].Length, Allocator.Persistent);
             for (int j=0; j<nn.weightsShape[i].Length; j++){
                 weightsShape[i][j] = nn.weightsShape[i][j];
             }
-        }
-        for (int i=0; i<nn.weights.Length; i++){
             weights[i] = new NativeArray<double>(nn.weights[i].Length, Allocator.Persistent);
             for (int j=0; j<nn.weights[i].Length; j++){
                 weights[i][j] = nn.weights[i][j];
             }
         }
-
         double[] stdVals = nn.stdVals;
 
         for (int i=0; i<nn.activations.Length; i++){

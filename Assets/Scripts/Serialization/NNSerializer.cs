@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class NNSerializer : MonoBehaviour
+public class NNSerializer
 {	
 	public static void Serialize(string path, NeuralNetwork[] actors, NeuralNetwork[] critics){
 		NNSerializable[] serializeableActors = new NNSerializable[actors.Length];

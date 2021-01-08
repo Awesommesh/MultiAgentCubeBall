@@ -2,30 +2,24 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class NNSerializable : MonoBehaviour
+[System.Serializable]
+public class NNSerializable
 {	
-	public int[][] weightsShape;
-	public double[][] weights;
+	public intListSerializable[] weightsShape;
+	public doubleListSerializable[] weights;
 	public int numLayers;
 	public int[] activations;
 	public int numInputs;
 	public int numOutputs;
 	public double[] stdVals;
 	public NNSerializable(NeuralNetwork nn){
-		weightsShape = new int[nn.weightsShape.Length][];
-		weights = new double[nn.weights.Length][];
-
-		for (int i=0; i<nn.weightsShape.Length; i++){
-			weightsShape[i] = new int[nn.weightsShape[i].Length];
-			for (int j=0; j<nn.weightsShape[i].Length; j++){
-				weightsShape[i][j] = nn.weightsShape[i][j];
-			}
-		}
-		for (int i=0; i<nn.weights.Length; i++){
-			weights[i] = new double[nn.weights[i].Length];
-			for (int j=0; j<nn.weights[i].Length; j++){
-				weights[i][j] = nn.weights[i][j];
-			}
+		weightsShape = new intListSerializable[nn.weightsShape.Length];
+		weights = new doubleListSerializable[nn.weights.Length];
+		stdVals = new double[nn.std.Length];
+		activations = new int[nn.activations.Length];
+		for (int i = 0; i < nn.numLayers; i++) {
+			weightsShape[i] = new intListSerializable(nn.weightsShape[i]);
+			weights[i] = new doubleListSerializable(nn.weights[i]);
 		}
 			
 		for (int i=0; i<nn.std.Length; i++){

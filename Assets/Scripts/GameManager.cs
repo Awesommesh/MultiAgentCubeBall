@@ -76,7 +76,9 @@ public class GameManager : MonoBehaviour
     //Serialization
     public string path;
     public bool loadFromFile;
-    bool saveExists;
+    public string savePath;
+    public bool saveToFile;
+    public bool overwrite;
 
     Unity.Mathematics.Random randSeed;
 
@@ -432,6 +434,10 @@ public class GameManager : MonoBehaviour
 
     void OnApplicationQuit()
     {
+        if (saveToFile && (!File.Exists(path) || overwrite)) {
+            Debug.Log("serializing");
+            NNSerializer.Serialize(savePath, actors, critics);
+        }
         Dispose();
     }
 
@@ -472,9 +478,5 @@ public class GameManager : MonoBehaviour
 
     void Reset() {
 
-    }
-
-    public void saveCurrentPopulation(){
-        NNSerializer.Serialize(path, actors, critics);
     }
 }

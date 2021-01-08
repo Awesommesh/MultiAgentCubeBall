@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 [System.Serializable]
-public class NNSerializableWrapper : MonoBehaviour
+public class NNSerializableWrapper
 {	
 	public NNSerializable[] actors;
 	public NNSerializable[] critics;
