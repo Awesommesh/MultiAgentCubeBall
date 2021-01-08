@@ -12,11 +12,12 @@ public class GameManager : MonoBehaviour
     public int NUM_ENV;
     public static double GAE_LAMBDA = 0.95;
     public static double GAMMA = 0.99;
-    public static double ALPHA = 0.0003;
+    public static double ALPHA = 0.0005;
     public static double BETA1 = 0.9;
     public static double BETA2 = 0.999;
     public static double EPSILON = 0.0000000001;
     public static int EPISODE_LENGTH = 128;
+    public static int ITERATION = 1;
     public int BATCH_SIZE;
     public static int MINI_BATCH_SIZE = 256;
     public int NUM_MINI_BATCHES;
@@ -75,6 +76,7 @@ public class GameManager : MonoBehaviour
     [BurstCompile]
     void Awake() {
         Physics.autoSimulation = false;
+        ITERATION = 1;
         BATCH_SIZE = EPISODE_LENGTH * NUM_ENV * TEAM_SIZE * 2;
         NUM_MINI_BATCHES = BATCH_SIZE / MINI_BATCH_SIZE;
         minibatches = new NativeArray<int>[NUM_PPO_EPOCHS];
@@ -144,7 +146,7 @@ public class GameManager : MonoBehaviour
                     redOriginalPos[k] = newRedTeam[k].transform.position;
                 }
                 envs[numEnvCreated] = new Experience(newBall, newBlueGoal, newRedGoal, newBlueTeam, newRedTeam, 
-                    ballOriginalPos, blueOriginalPos, redOriginalPos);
+                    ballOriginalPos, blueOriginalPos, redOriginalPos, (uint)((numEnvCreated+1)*117));
                 numEnvCreated++;
             }
         }
@@ -173,19 +175,25 @@ public class GameManager : MonoBehaviour
 
         actorStd = new double[NUM_ACTIONS];
         for (int i = 0; i < NUM_ACTIONS; i++) {
-            actorStd[i] = 5;
+            actorStd[i] = 10;
         }
         criticStd = new double[1];
         criticStd[0] = 1;
         actors = new NeuralNetwork[TEAM_SIZE];
         critics = new NeuralNetwork[TEAM_SIZE];
 
-        ActivationType[] activationList = new ActivationType[numLayers];
-        activationList[0] = ActivationType.ReLU;
-        activationList[1] = ActivationType.ReLU;
-        activationList[2] = ActivationType.ReLU;
-        activationList[3] = ActivationType.ReLU;
-        activationList[4] = ActivationType.None;
+        ActivationType[] actorActivationList = new ActivationType[numLayers];
+        actorActivationList[0] = ActivationType.ReLU;
+        actorActivationList[1] = ActivationType.ReLU;
+        actorActivationList[2] = ActivationType.ReLU;
+        actorActivationList[3] = ActivationType.ReLU;
+        actorActivationList[4] = ActivationType.None;
+        ActivationType[] criticActivationList = new ActivationType[numLayers];
+        criticActivationList[0] = ActivationType.ReLU;
+        criticActivationList[1] = ActivationType.ReLU;
+        criticActivationList[2] = ActivationType.ReLU;
+        criticActivationList[3] = ActivationType.ReLU;
+        criticActivationList[4] = ActivationType.None;
         
         for (int i = 0; i < TEAM_SIZE; i++) {
             NativeArray<double>[] weights = new NativeArray<double>[numLayers];
@@ -196,7 +204,7 @@ public class GameManager : MonoBehaviour
                 curShape[j][1] = layerShapes[j][1];
                 weights[j] = NativeNDOps.HeInitializedNDArray(layerShapes[j], layerShapes[j][1], Allocator.Persistent);
             }
-            actors[i] = new NeuralNetwork(numLayers, activationList, weights, curShape, STATE_SIZE, NUM_ACTIONS, 
+            actors[i] = new NeuralNetwork(numLayers, actorActivationList, weights, curShape, STATE_SIZE, NUM_ACTIONS, 
                 actorStd, ALPHA, BETA1, BETA2, EPSILON, ADAM_BATCH_SIZE, 2, MINI_BATCH_SIZE);
             weights = new NativeArray<double>[numLayers];
             curShape = new NativeArray<int>[numLayers];
@@ -210,13 +218,8 @@ public class GameManager : MonoBehaviour
                 curShape[j][1] = layerShapes[j][1];
                 weights[j] = NativeNDOps.HeInitializedNDArray(layerShapes[j], layerShapes[j][1], Allocator.Persistent);
             }
-            activationList = new ActivationType[numLayers];
-            activationList[0] = ActivationType.ReLU;
-            activationList[1] = ActivationType.ReLU;
-            activationList[2] = ActivationType.ReLU;
-            activationList[3] = ActivationType.ReLU;
-            activationList[4] = ActivationType.None;
-            critics[i] = new NeuralNetwork(numLayers, activationList, weights, curShape, STATE_SIZE, 1, 
+            
+            critics[i] = new NeuralNetwork(numLayers, criticActivationList, weights, curShape, STATE_SIZE, 1, 
                 criticStd, ALPHA, BETA1, BETA2, EPSILON, ADAM_BATCH_SIZE, 2, MINI_BATCH_SIZE);
         }
         for (int i = 0; i < numLayers; i++) {
@@ -336,6 +339,7 @@ public class GameManager : MonoBehaviour
                     envs[i].resetEnv();
                 }
                 episode_iteration = 0;
+                ITERATION++;
             }
             Physics.Simulate(PHYSICS_STEP_SIZE);
         }

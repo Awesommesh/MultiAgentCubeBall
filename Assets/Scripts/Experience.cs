@@ -46,8 +46,9 @@ public class Experience {
     double FIELD_LENGTH;
     double goalWidth = 18;
     double goalHeight = 8;
+    Unity.Mathematics.Random customSampler;
     public Experience (GameObject ball, GameObject blueGoal, GameObject redGoal, GameObject[] blueTeam, GameObject[] redTeam, 
-        Vector3 ballOriginalPos, Vector3[] blueOriginalPos, Vector3[] redOriginalPos) {
+        Vector3 ballOriginalPos, Vector3[] blueOriginalPos, Vector3[] redOriginalPos, uint samplerSeed) {
         //General Initialization
         time_step = 0;
         this.ball = ball;
@@ -56,6 +57,7 @@ public class Experience {
         this.ballOriginalPos = ballOriginalPos;
         mask = new NativeArray<int>(GameManager.EPISODE_LENGTH, Allocator.Persistent);
         FIELD_LENGTH = math.abs(blueGoal.transform.localPosition.x - redGoal.transform.localPosition.x);
+        customSampler = new Unity.Mathematics.Random(samplerSeed);
 
         //Blue initialization
         blueRewards = new NDArray(GameManager.EPISODE_LENGTH, GameManager.TEAM_SIZE);
@@ -330,7 +332,7 @@ public class Experience {
         for (int i = 0; i < GameManager.TEAM_SIZE; i++) {
             //Blue Team Actions
             for (int j = 0; j < GameManager.NUM_ACTIONS; j++) {
-                blueActions[time_step, i][j] = GaussianDistribution.NextGaussian(actionDists[i, 0][j], blueAgents[i].std[j]);
+                blueActions[time_step, i][j] = GaussianDistribution.NextGaussian(actionDists[i, 0][j], blueAgents[i].std[j], customSampler);
                 blueLog_Probs[time_step, i][j] = GaussianDistribution.log_prob(blueActions[time_step, i][j], actionDists[i, 0][j], blueAgents[i].std[j]);
             }
             rb = bluePlayers[i].GetComponent<Rigidbody>();
@@ -340,7 +342,7 @@ public class Experience {
 
             //Red Team Actions
             for (int j = 0; j < GameManager.NUM_ACTIONS; j++) {
-                redActions[time_step, i][j] = GaussianDistribution.NextGaussian(actionDists[i, 1][j], redAgents[i].std[j]);
+                redActions[time_step, i][j] = GaussianDistribution.NextGaussian(actionDists[i, 1][j], redAgents[i].std[j], customSampler);
                 redLog_Probs[time_step, i][j] = GaussianDistribution.log_prob(redActions[time_step, i][j], actionDists[i, 1][j], redAgents[i].std[j]);
             }
             rb = redPlayers[i].GetComponent<Rigidbody>();

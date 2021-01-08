@@ -204,7 +204,7 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
             //Adam Optimization Job
             AdamOptimizerStepJob adamJob = new AdamOptimizerStepJob {
                 weightsGrad = weightsGrads[i],
-                alpha = alpha,
+                alpha = (alpha/math.sqrt(GameManager.ITERATION)),
                 beta1 = beta1,
                 beta2 = beta2,
                 epsilon = epsilon,
@@ -256,7 +256,7 @@ public struct NeuralNetwork { //Change to call small jobs to do all calcs
             //Adam Optimization Job
             AdamOptimizerStepJob adamJob = new AdamOptimizerStepJob {
                 weightsGrad = weightsGrads[i],
-                alpha = alpha,
+                alpha = (alpha/math.sqrt(GameManager.ITERATION)),
                 beta1 = beta1,
                 beta2 = beta2,
                 epsilon = epsilon,

@@ -14,8 +14,18 @@ public struct GaussianDistribution : IComponentData {
         return math.sqrt(-2 * math.log(u1)) * math.sin(2 * math.PI * u2);
     }
 
+    public static double NextGaussian(Unity.Mathematics.Random customSampler) {
+        double u1 = 1 - customSampler.NextDouble();
+        double u2 = 1 - customSampler.NextDouble();
+        return math.sqrt(-2 * math.log(u1)) * math.sin(2 * math.PI * u2);
+    }
+
     public static double NextGaussian(double mean, double std) {
         return mean + NextGaussian() * std;
+    }
+
+    public static double NextGaussian(double mean, double std, Unity.Mathematics.Random customSampler) {
+        return mean + NextGaussian(customSampler) * std;
     }
 
     public static double NextGaussian(double mean, double std, double range) {
