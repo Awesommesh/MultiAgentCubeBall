@@ -232,7 +232,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 898156934}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c643f4e567f1a40ffb2ba81c6e820429, type: 3}
+  m_Script: {fileID: 11500000, guid: ac77316e8b0934cf0a4d3cf03a2be8a8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   MINI_BATCH_SEED: 4
@@ -246,6 +246,8 @@ MonoBehaviour:
   criticStd: []
   episode_iteration: 0
   gameEnv: {fileID: 5599166562531727043, guid: 644466799e3e146b5ac39061b804d6b1, type: 3}
+  path: 
+  loadFromFile: 0
 --- !u!4 &898156936
 Transform:
   m_ObjectHideFlags: 0

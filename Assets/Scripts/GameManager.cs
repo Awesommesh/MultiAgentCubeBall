@@ -163,7 +163,6 @@ public class GameManager : MonoBehaviour
         
         if (File.Exists(path) && loadFromFile){
             NNSerializer.Deserialize(path, actors, critics);
-
         } else {
             layerShapes = new NativeArray<int>[numLayers];
             for (int i = 0; i < numLayers; i++) {
@@ -473,5 +472,9 @@ public class GameManager : MonoBehaviour
 
     void Reset() {
 
+    }
+
+    public void saveCurrentPopulation(){
+        NNSerializer.Serialize(path, actors, critics);
     }
 }
