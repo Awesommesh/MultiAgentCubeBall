@@ -25,7 +25,7 @@ public struct NativeNDOps : IComponentData {
         matmul(aTranspose, bTranspose, aShape[0], aShape[1], bShape[0], bShape[1], (double*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(a), (double*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(b), (double*)NativeArrayUnsafeUtility.GetUnsafeBufferPointerWithoutChecks(output));
     }
 
-    [DllImport("/Users/animeshagrawal/repositories/MultiAgentCubeBall/Assets/Scripts/MathHelper/matmul.dylib")]
+    [DllImport("/Users/agraw17107/Documents/Github/MultiAgentCubeBall/Assets/Scripts/MathHelper/matmul.dylib")]
     public static extern unsafe void matmul(int transA, int transB, int A_width, int A_height, int B_width, int B_height, 
         double* A, double* B, double* output);
 
