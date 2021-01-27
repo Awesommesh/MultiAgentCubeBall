@@ -1,0 +1,66 @@
+{
+  "BurstVersion": "12fd8c57-ac57-41e8-88f3-e2a61ac3563b",
+  "Assemblies": [
+    {
+      "FullName": "Unity.Burst, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "LastWriteTime": "2021-01-26T05:26:52Z"
+    },
+    {
+      "FullName": "netstandard, Version=2.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51",
+      "LastWriteTime": "2020-12-22T07:58:57Z"
+    },
+    {
+      "FullName": "mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089",
+      "LastWriteTime": "2020-12-22T07:58:57Z"
+    },
+    {
+      "FullName": "UnityEngine.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null",
+      "LastWriteTime": "2020-12-22T07:58:54Z"
+    },
+    {
+      "FullName": "Unity.Barracuda, Version=1.2.1.0, Culture=neutral, PublicKeyToken=null",
+      "LastWriteTime": "2021-01-26T05:26:55Z"
+    },
+    {
+      "FullName": "mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089",
+      "LastWriteTime": "2020-12-22T07:58:57Z"
+    }
+  ],
+  "Functions": [
+    {
+      "FullName": "System.Int32 Unity.Burst.Intrinsics.X86::DoGetCSRTrampoline()",
+      "ModuleOptionsHash": 8794384452606821980,
+      "ModuleHash": "6bccf9327c83d01a75a598d15ce2339b",
+      "LinkName": "CDCA4A5193BE5947",
+      "AssemblyDependencyIndices": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "FullName": "System.Void Unity.Burst.Intrinsics.X86::DoSetCSRTrampoline(System.Int32)",
+      "ModuleOptionsHash": 8794384452606821980,
+      "ModuleHash": "b19b5c8c7cf711f8d3ec51f97e901b24",
+      "LinkName": "801E9A000BB37B05",
+      "AssemblyDependencyIndices": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "FullName": "System.Void Unity.Jobs.IJobParallelForExtensions/ParallelForJobStruct`1<Unity.Barracuda.BurstCPUOps/ExpJob>::Execute(T&,System.IntPtr,System.IntPtr,Unity.Jobs.LowLevel.Unsafe.JobRanges&,System.Int32)",
+      "ModuleOptionsHash": 8794384452606821980,
+      "ModuleHash": "2c70987a63675210cb4e43660c1022c9",
+      "LinkName": "53FE69074E5AFF26",
+      "AssemblyDependencyIndices": [
+        3,
+        4,
+        5,
+        1,
+        2
+      ]
+    }
+  ]
+}
