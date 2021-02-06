@@ -52,36 +52,36 @@ public class AgentSoccer : Agent
 
     public override void Initialize()
     {
-        m_Existential = 1f / MaxStep;
+        m_Existential = 2.5f / MaxStep;
         m_BehaviorParameters = gameObject.GetComponent<BehaviorParameters>();
         if (m_BehaviorParameters.TeamId == (int)Team.Blue)
         {
             team = Team.Blue;
-            m_Transform = new Vector3(transform.position.x - 4f, .5f, transform.position.z);
+            m_Transform = new Vector3(transform.position.x - 10f, 1.25f, transform.position.z);
         }
         else
         {
             team = Team.Purple;
-            m_Transform = new Vector3(transform.position.x + 4f, .5f, transform.position.z);
+            m_Transform = new Vector3(transform.position.x + 10f, 1.25f, transform.position.z);
         }
         if (position == Position.Goalie)
         {
-            m_LateralSpeed = 1.0f;
-            m_ForwardSpeed = 1.0f;
+            m_LateralSpeed = 2.5f;
+            m_ForwardSpeed = 2.5f;
         }
         else if (position == Position.Striker)
         {
-            m_LateralSpeed = 0.3f;
-            m_ForwardSpeed = 1.3f;
+            m_LateralSpeed = 0.75f;
+            m_ForwardSpeed = 3.25f;
         }
         else
         {
-            m_LateralSpeed = 0.3f;
-            m_ForwardSpeed = 1.0f;
+            m_LateralSpeed = 0.75f;
+            m_ForwardSpeed = 2.5f;
         }
         m_SoccerSettings = FindObjectOfType<SoccerSettings>();
         agentRb = GetComponent<Rigidbody>();
-        agentRb.maxAngularVelocity = 500;
+        agentRb.maxAngularVelocity = 1250;
 
         var playerState = new PlayerState
         {
@@ -209,7 +209,7 @@ public class AgentSoccer : Agent
         }
         if (c.gameObject.CompareTag("ball"))
         {
-            AddReward(.2f * m_BallTouch);
+            AddReward(1.25f*m_BallTouch);
             var dir = c.contacts[0].point - transform.position;
             dir = dir.normalized;
             c.gameObject.GetComponent<Rigidbody>().AddForce(dir * force);
@@ -220,7 +220,7 @@ public class AgentSoccer : Agent
     {
 
         timePenalty = 0;
-        m_BallTouch = m_ResetParams.GetWithDefault("ball_touch", 0);
+        m_BallTouch = m_ResetParams.GetWithDefault("ball_touch", 0.05f);
         if (team == Team.Purple)
         {
             transform.rotation = Quaternion.Euler(0f, -90f, 0f);

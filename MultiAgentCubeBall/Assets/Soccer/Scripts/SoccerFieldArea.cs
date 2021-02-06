@@ -58,11 +58,11 @@ public class SoccerFieldArea : MonoBehaviour
         {
             if (ps.agentScript.team == scoredTeam)
             {
-                ps.agentScript.AddReward(1 + ps.agentScript.timePenalty);
+                ps.agentScript.AddReward(6.25f + ps.agentScript.timePenalty);
             }
             else
             {
-                ps.agentScript.AddReward(-1);
+                ps.agentScript.AddReward(-6.25f);
             }
             ps.agentScript.EndEpisode();  //all agents need to be reset
 
@@ -79,7 +79,7 @@ public class SoccerFieldArea : MonoBehaviour
         ballRb.velocity = Vector3.zero;
         ballRb.angularVelocity = Vector3.zero;
 
-        var ballScale = m_ResetParams.GetWithDefault("ball_scale", 0.015f);
+        var ballScale = m_ResetParams.GetWithDefault("ball_scale", 0.0375f);
         ballRb.transform.localScale = new Vector3(ballScale, ballScale, ballScale);
     }
 }
